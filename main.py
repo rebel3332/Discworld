@@ -120,6 +120,10 @@ async def websocket_endpoint(ws: WebSocket):
     except Exception as e:
         logger.error(f"⚠️ Error handling {client_id}: {e}")
     finally:
+        try:
+            await ws.close(code=1000)  # 1000 = нормальное закрытие
+        except:
+            pass  # Игнорируем, если уже закрыт
         # Гарантированная очистка ресурсов при разрыве
         active_connections.pop(client_id, None)
         client_inputs.pop(client_id, None)
