@@ -15,6 +15,7 @@ class Entity:
 class Player(Entity):
     hp: int = 100
     score: int = 0
+    angle: float = 0.0
 
 @dataclass
 class Enemy(Entity):
@@ -81,6 +82,7 @@ class Game:
     def process_inputs(self, cid: int, dx: float, dy: float, shoot: bool, angle: float):
         if cid not in self.players: return
         p = self.players[cid]
+        p.angle = angle
         
         # 🔒 Движение: нормализуем вектор (анти-спидхак)
         if dx != 0 or dy != 0:
@@ -298,7 +300,15 @@ class Game:
     def get_snapshot(self) -> dict:
         return {
             "players": [
-                {"id": p.id, "x": p.x, "y": p.y, "hp": p.hp, "score": p.score, "radius": p.radius}
+                {
+                    "id": p.id,
+                    "x": p.x,
+                    "y": p.y,
+                    "hp": p.hp,
+                    "score": p.score,
+                    "radius": p.radius,
+                    "angle": p.angle
+                }
                 for p in self.players.values()
             ],
             "enemies": [

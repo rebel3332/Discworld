@@ -237,43 +237,60 @@
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                // Прицел только у себя
-                if(isMe) {
+                // Оружие
+                const gunLength = 25;
 
-                    const angle = Math.atan2(
-                        mouse.y - p.y,
-                        mouse.x - p.x
-                    );
+                ctx.strokeStyle = isMe ? '#0f0' : '#d0f';
+                ctx.lineWidth = 4;
 
-                    ctx.strokeStyle = '#0f0';
-                    ctx.lineWidth = 2;
+                ctx.beginPath();
 
-                    ctx.beginPath();
-                    ctx.moveTo(p.x, p.y);
-                    ctx.lineTo(
-                        p.x + Math.cos(angle) * 25,
-                        p.y + Math.sin(angle) * 25
-                    );
+                ctx.moveTo(p.x, p.y);
 
-                    ctx.stroke();
+                ctx.lineTo(
+                    p.x + Math.cos(p.angle) * gunLength,
+                    p.y + Math.sin(p.angle) * gunLength
+                );
 
-                    // Кулдаун
-                    if(shootCooldown > 0) {
+                ctx.stroke();
 
-                        ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+                // // Прицел только у себя
+                // if(isMe) {
 
-                        ctx.beginPath();
-                        ctx.arc(
-                            p.x,
-                            p.y,
-                            p.radius + 5 + shootCooldown,
-                            0,
-                            Math.PI * 2
-                        );
+                //     const angle = Math.atan2(
+                //         mouse.y - p.y,
+                //         mouse.x - p.x
+                //     );
 
-                        ctx.fill();
-                    }
-                }
+                //     ctx.strokeStyle = '#0f0';
+                //     ctx.lineWidth = 2;
+
+                //     ctx.beginPath();
+                //     ctx.moveTo(p.x, p.y);
+                //     ctx.lineTo(
+                //         p.x + Math.cos(angle) * 25,
+                //         p.y + Math.sin(angle) * 25
+                //     );
+
+                //     ctx.stroke();
+
+                //     // Кулдаун
+                //     if(shootCooldown > 0) {
+
+                //         ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+
+                //         ctx.beginPath();
+                //         ctx.arc(
+                //             p.x,
+                //             p.y,
+                //             p.radius + 5 + shootCooldown,
+                //             0,
+                //             Math.PI * 2
+                //         );
+
+                //         ctx.fill();
+                //     }
+                // }
             });
             
             // === ЭФФЕКТЫ ===
