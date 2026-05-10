@@ -27,7 +27,7 @@
         let state = { players: [], enemies: [], bullets: [], hits: [], explosions: [] };
         let keys = {};
         let mouse = { x: canvas.width/2, y: canvas.height/2, down: false };
-        let shootCooldown = 0;
+        // let shootCooldown = 0; Перенес обработку на сервер
         let lastShotTime = 0;
         
         // Настройки эффектов
@@ -105,9 +105,9 @@
                 angle = Math.atan2(mouse.y - p.y, mouse.x - p.x);
             }
             
-            const canShoot = mouse.down && shootCooldown <= 0;
+            const canShoot = mouse.down; // && shootCooldown <= 0;
             if(canShoot) {
-                shootCooldown = 10; // ~6 выстрелов/сек
+                //shootCooldown = 10; // ~6 выстрелов/сек
                 // Локальный эффект выстрела (мгновенный, без задержки сети)
                 if(me()) {
                     const p = me();
@@ -120,7 +120,7 @@
                     });
                 }
             }
-            shootCooldown = Math.max(0, shootCooldown - 1);
+            //shootCooldown = Math.max(0, shootCooldown - 1);
             
             ws.send(JSON.stringify({ dx, dy, shoot: canShoot, angle }));
         }
@@ -346,13 +346,18 @@
             document.getElementById('hp').textContent = player?.hp || 100;
             document.getElementById('score').textContent = player?.score || 0;
             
-            sendInput();
+            // sendInput(); // Перенес в отдельный loop для более стабильной отправки данных
             requestAnimationFrame(render);
         }
         
         // Старт
         console.log("🎮 Client started");
+
         connect();
+
+        // отдельный network loop
+        setInterval(sendInput, 1000 / 60);
+
         render();
     </script>
 </body>

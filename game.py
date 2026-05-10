@@ -16,6 +16,8 @@ class Player(Entity):
     hp: int = 100
     score: int = 0
     angle: float = 0.0
+    is_bot: bool = False
+    shoot_cooldown: float = 0.0 # время до следующего выстрела
 
 @dataclass
 class Enemy(Entity):
@@ -79,6 +81,9 @@ class Game:
     def remove_player(self, cid: int):
         self.players.pop(cid, None)
 
+    def remove_dead_bot(self, cid):
+        self.remove_player(cid)
+
     def process_inputs(self, cid: int, dx: float, dy: float, shoot: bool, angle: float):
         if cid not in self.players: return
         p = self.players[cid]
@@ -95,7 +100,7 @@ class Game:
             p.y = max(p.radius, min(self.H - p.radius, p.y))
             
         # 🔒 Выстрел
-        if shoot:
+        if shoot and p.shoot_cooldown <= 0:
             bullet = Bullet(
                 id=self.next_id,
                 x=p.x,
@@ -108,6 +113,7 @@ class Game:
             bullet.owner = cid
 
             self.bullets.append(bullet)
+            p.shoot_cooldown = 0.15  # 150ms между выстрелами
             self.next_id += 1
 
     def _check_collisions(self):
@@ -174,9 +180,12 @@ class Game:
 
                     # смерть игрока
                     if p.hp <= 0:
-                        p.hp = 100
-                        p.x = random.randint(100, self.W - 100)
-                        p.y = random.randint(100, self.H - 100)
+                        if p.is_bot:
+                            dead_bots.append(cid)
+                        else:
+                            p.hp = 100
+                            p.x = random.randint(100, self.W - 100)
+                            p.y = random.randint(100, self.H - 100)
 
                     break
 
@@ -220,6 +229,11 @@ class Game:
 
 
     def tick(self):
+        # cooldowns
+        for p in self.players.values():
+            if p.shoot_cooldown > 0:
+                p.shoot_cooldown -= self.dt
+
         # 1. Спавн врагов (без изменений)
         self.spawn_timer += self.dt
         if self.spawn_timer >= self.spawn_interval:
