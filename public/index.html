@@ -21,6 +21,9 @@
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
         const statusEl = document.getElementById('status');
+
+        const params = new URLSearchParams(location.search);
+        const spectatorMode = params.get('spectator') === '1';
         
         // Состояние
         let myId = null;
@@ -46,7 +49,9 @@
         function connect() {
             statusEl.textContent = "🔄 Connecting...";
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${location.host}/ws`);
+            // ws = new WebSocket(`${protocol}//${location.host}/ws`);
+            const endpoint = spectatorMode ? '/justlook' : '/ws';
+            ws = new WebSocket(`${protocol}//${location.host}${endpoint}`);
             
             ws.onopen = () => {
                 statusEl.textContent = "🟢 ONLINE";
@@ -92,6 +97,7 @@
         // Отправка ввода
         function sendInput() {
             if(!ws || ws.readyState !== WebSocket.OPEN) return;
+            if(spectatorMode) return;
             
             let dx = 0, dy = 0;
             if(keys['KeyW']||keys['ArrowUp']) dy = -1;
@@ -254,6 +260,16 @@
 
                 ctx.stroke();
 
+                // имя
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(
+                    p.name || 'Player',
+                    p.x,
+                    p.y - p.radius - 12
+                );
+
                 // // Прицел только у себя
                 // if(isMe) {
 
@@ -341,11 +357,14 @@
             });
             
             // UI
-            const player = me();
-            
-            document.getElementById('hp').textContent = player?.hp || 100;
-            document.getElementById('score').textContent = player?.score || 0;
-            
+            if(spectatorMode) {
+                document.getElementById('ui').style.display = 'none';
+            } else {
+                const player = me();
+                
+                document.getElementById('hp').textContent = player?.hp || 100;
+                document.getElementById('score').textContent = player?.score || 0;
+            }
             // sendInput(); // Перенес в отдельный loop для более стабильной отправки данных
             requestAnimationFrame(render);
         }

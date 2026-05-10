@@ -13,6 +13,7 @@ class Entity:
 
 @dataclass
 class Player(Entity):
+    name: str = "Player"
     hp: int = 100
     score: int = 0
     angle: float = 0.0
@@ -59,6 +60,7 @@ class Game:
         self.enemies: List[Enemy] = []
         self.bullets: List[Bullet] = []
         self.next_id = 1
+        self.player_counter = 1
         
         self.spawn_timer = 0.0
         self.spawn_interval = 2.0  # сек
@@ -67,15 +69,17 @@ class Game:
         self.explosions: List[Explosion] = []
         self.next_effect_id = 10000  # отдельный счётчик для эффектов
 
-    def add_player(self, cid: int) -> Player:
+    def add_player(self, cid: int, name: str | None = None) -> Player:
         p = Player(
             id=self.next_id,
             x=random.randint(100, self.W - 100),
             y=random.randint(100, self.H - 100),
-            radius=12
+            radius=12,
+            name=name or f"Player{self.player_counter}"
         )
         self.next_id += 1
         self.players[cid] = p
+        self.player_counter += 1
         return p
 
     def remove_player(self, cid: int):
@@ -180,9 +184,10 @@ class Game:
 
                     # смерть игрока
                     if p.hp <= 0:
-                        if p.is_bot:
-                            dead_bots.append(cid)
-                        else:
+                        # if p.is_bot:
+                        #     # dead_bots.append(cid)
+                        #     pass
+                        # else:
                             p.hp = 100
                             p.x = random.randint(100, self.W - 100)
                             p.y = random.randint(100, self.H - 100)
@@ -316,6 +321,7 @@ class Game:
             "players": [
                 {
                     "id": p.id,
+                    "name": p.name,
                     "x": p.x,
                     "y": p.y,
                     "hp": p.hp,

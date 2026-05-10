@@ -18,6 +18,7 @@ logger = logging.getLogger("hacker2")
 game = Game()
 client_inputs = {}  # {client_id: input_data}
 active_connections = {}  # {client_id: WebSocket}
+spectator_connections = {}  # {spectator_id: WebSocket} # Для зрителей
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -68,6 +69,7 @@ async def game_loop():
             
             # Рассылаем всем активным клиентам
             dead_clients = []
+            # player clients (рассылка игрокам)
             for cid, ws in active_connections.items():
                 try:
                     await ws.send_text(snapshot)
@@ -75,6 +77,12 @@ async def game_loop():
                     # Если отправка не удалась, клиент, скорее всего, отключился
                     logger.warning(f"❌ Failed to send to {cid}: {e}")
                     dead_clients.append(cid)
+            # spectator clients (рассылка зрителям)
+            for sid, ws in list(spectator_connections.items()):
+                try:
+                    await ws.send_text(snapshot)
+                except Exception:
+                    spectator_connections.pop(sid, None)
             
             # Чистим список от "мертвых душ"
             for cid in dead_clients:
@@ -111,6 +119,19 @@ async def websocket_endpoint(ws: WebSocket):
         "player_id": player.id
     }))
 
+    # optional hello packet from bot
+    try:
+        hello_raw = await asyncio.wait_for(ws.receive_text(), timeout=0.3)
+        hello = json.loads(hello_raw)
+
+        if hello.get("type") == "hello":
+            bot_name = hello.get("name", "Bot")[:24]
+            player.name = bot_name
+            player.is_bot = True
+
+    except Exception:
+        pass
+
     try:
         while True:
             # Ждём данные от клиента
@@ -135,6 +156,30 @@ async def websocket_endpoint(ws: WebSocket):
         client_inputs.pop(client_id, None)
         game.remove_player(client_id)
         logger.info(f"🧹 Cleaned up resources for {client_id}")
+
+
+@app.websocket("/justlook")
+async def spectator_endpoint(ws: WebSocket):
+
+    await ws.accept()
+
+    spectator_id = id(ws)
+
+    spectator_connections[spectator_id] = ws
+
+    logger.info(f"👁 Spectator connected {spectator_id}")
+
+    try:
+        while True:
+            # spectator ничего не отправляет
+            await ws.receive_text()
+
+    except WebSocketDisconnect:
+        logger.info(f"👁 Spectator disconnected {spectator_id}")
+
+    finally:
+        spectator_connections.pop(spectator_id, None)
+
 
 @app.get("/")
 async def serve_frontend():

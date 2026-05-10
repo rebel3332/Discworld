@@ -34,6 +34,11 @@ async def bot_loop():
                 if data.get("type") == "welcome":
                     my_id = data["player_id"]
                     print("MY ID:", my_id)
+
+                    await ws.send(json.dumps({
+                        "type": "hello",
+                        "name": "FriendlyBot"
+                    }))
                     continue
 
                 state = data
@@ -55,7 +60,6 @@ async def bot_loop():
                 nearest = None
                 nearest_dist = 999999
 
-                # Ищем ближайшего врага для атаки
                 for e in enemies:
 
                     dx = e["x"] - me["x"]
@@ -65,21 +69,6 @@ async def bot_loop():
 
                     if dist < nearest_dist:
                         nearest = e
-                        nearest_dist = dist
-                
-                # Ищем блиайшего игрока для атаки
-                for p in players:
-
-                    if p["id"] == my_id:
-                        continue
-
-                    dx = p["x"] - me["x"]
-                    dy = p["y"] - me["y"]
-
-                    dist = math.hypot(dx, dy)
-
-                    if dist < nearest_dist:
-                        nearest = p
                         nearest_dist = dist
 
                 move_x = 0
