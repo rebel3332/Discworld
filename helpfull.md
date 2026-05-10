@@ -1,3 +1,9 @@
+# Запуск
+```shell
+ uvicorn main:app --host 0.0.0.0 --port 8000
+ ```
+
+# Откат к старому git
 ```shell
 # Вывести список гитов
 (online_project) PS D:\Projects\Hacker_2.0\game> git log --oneline -10                               

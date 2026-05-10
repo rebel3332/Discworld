@@ -101,10 +101,16 @@ async def websocket_endpoint(ws: WebSocket):
     # Регистрируем клиента
     active_connections[client_id] = ws
     client_inputs[client_id] = {"dx": 0, "dy": 0, "shoot": False}
-    game.add_player(client_id)
+    player = game.add_player(client_id)
     
     logger.info(f"✅ Player {client_id} connected. Total players: {len(active_connections)}")
     
+    # Отправляем приветственное сообщение с ID клиента
+    await ws.send_text(json.dumps({
+        "type": "welcome",
+        "player_id": player.id
+    }))
+
     try:
         while True:
             # Ждём данные от клиента

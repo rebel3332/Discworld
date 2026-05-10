@@ -23,6 +23,7 @@
         const statusEl = document.getElementById('status');
         
         // Состояние
+        let myId = null;
         let state = { players: [], enemies: [], bullets: [], hits: [], explosions: [] };
         let keys = {};
         let mouse = { x: canvas.width/2, y: canvas.height/2, down: false };
@@ -57,9 +58,24 @@
                 setTimeout(connect, 2000);
             };
             ws.onmessage = (e) => {
-                try { state = JSON.parse(e.data); } 
-                catch(err) { console.error("Parse error:", err); }
+                try {
+                    const data = JSON.parse(e.data);
+
+                    if(data.type === 'welcome') {
+                        myId = data.player_id;
+                        return;
+                    }
+
+                    state = data;
+
+                } catch(err) {
+                    console.error("Parse error:", err);
+                }
             };
+        }
+
+        function me() {
+            return state.players?.find(p => p.id === myId);
         }
         
         // Управление
@@ -84,8 +100,8 @@
             if(keys['KeyD']||keys['ArrowRight']) dx = 1;
             
             let angle = 0;
-            if(state.players?.[0]) {
-                const p = state.players[0];
+            if(me()) {
+                const p = me();
                 angle = Math.atan2(mouse.y - p.y, mouse.x - p.x);
             }
             
@@ -93,8 +109,8 @@
             if(canShoot) {
                 shootCooldown = 10; // ~6 выстрелов/сек
                 // Локальный эффект выстрела (мгновенный, без задержки сети)
-                if(state.players?.[0]) {
-                    const p = state.players[0];
+                if(me()) {
+                    const p = me();
                     localEffects.push({
                         type: 'muzzle',
                         x: p.x + Math.cos(angle)*15,
@@ -159,41 +175,112 @@
                 ctx.stroke();
             });
             
-            // Игрок
-            if(state.players?.[0]) {
-                const p = state.players[0];
+            // // Игрок
+            // if(me()) {
+            //     const p = state.players[0];
+            //     // Тело
+            //     ctx.fillStyle = '#0f0';
+            //     ctx.beginPath();
+            //     ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+            //     ctx.fill();
+            //     ctx.strokeStyle = '#080';
+            //     ctx.lineWidth = 2;
+            //     ctx.stroke();
+                
+            //     // Прицел
+            //     const angle = Math.atan2(mouse.y - p.y, mouse.x - p.x);
+            //     ctx.strokeStyle = '#0f0';
+            //     ctx.lineWidth = 2;
+            //     ctx.beginPath();
+            //     ctx.moveTo(p.x, p.y);
+            //     ctx.lineTo(p.x + Math.cos(angle)*25, p.y + Math.sin(angle)*25);
+            //     ctx.stroke();
+                
+            //     // UI: кулдаун стрельбы
+            //     if(shootCooldown > 0) {
+            //         ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+            //         ctx.beginPath();
+            //         ctx.arc(p.x, p.y, p.radius + 5 + shootCooldown, 0, Math.PI*2);
+            //         ctx.fill();
+            //     }
+            // }
+
+            // // Другие игроки
+            // state.players?.forEach(p => {
+
+            //     if(p.id === myId) return;
+
+            //     ctx.fillStyle = '#a0f';
+
+            //     ctx.beginPath();
+            //     ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            //     ctx.fill();
+
+            //     ctx.strokeStyle = '#60a';
+            //     ctx.lineWidth = 2;
+            //     ctx.stroke();
+            // });
+
+            // Игроки
+            state.players?.forEach(p => {
+
+                const isMe = p.id === myId;
+
                 // Тело
-                ctx.fillStyle = '#0f0';
+                ctx.fillStyle = isMe ? '#0f0' : '#a0f';
+
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.strokeStyle = '#080';
+
+                ctx.strokeStyle = isMe ? '#080' : '#60a';
                 ctx.lineWidth = 2;
                 ctx.stroke();
-                
-                // Прицел
-                const angle = Math.atan2(mouse.y - p.y, mouse.x - p.x);
-                ctx.strokeStyle = '#0f0';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(p.x, p.y);
-                ctx.lineTo(p.x + Math.cos(angle)*25, p.y + Math.sin(angle)*25);
-                ctx.stroke();
-                
-                // UI: кулдаун стрельбы
-                if(shootCooldown > 0) {
-                    ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+
+                // Прицел только у себя
+                if(isMe) {
+
+                    const angle = Math.atan2(
+                        mouse.y - p.y,
+                        mouse.x - p.x
+                    );
+
+                    ctx.strokeStyle = '#0f0';
+                    ctx.lineWidth = 2;
+
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.radius + 5 + shootCooldown, 0, Math.PI*2);
-                    ctx.fill();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(
+                        p.x + Math.cos(angle) * 25,
+                        p.y + Math.sin(angle) * 25
+                    );
+
+                    ctx.stroke();
+
+                    // Кулдаун
+                    if(shootCooldown > 0) {
+
+                        ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+
+                        ctx.beginPath();
+                        ctx.arc(
+                            p.x,
+                            p.y,
+                            p.radius + 5 + shootCooldown,
+                            0,
+                            Math.PI * 2
+                        );
+
+                        ctx.fill();
+                    }
                 }
-            }
+            });
             
             // === ЭФФЕКТЫ ===
             
             // Попадания (от сервера)
             state.hits?.forEach(h => {
-                ctx.fillStyle = `rgba(255, 100, 100, ${0.8})`;
+                ctx.fillStyle = h.color || `rgba(255, 100, 100, ${0.8})`;
                 ctx.beginPath();
                 ctx.arc(h.x, h.y, EFFECTS.hitFlash.radius, 0, Math.PI*2);
                 ctx.fill();
@@ -237,8 +324,10 @@
             });
             
             // UI
-            document.getElementById('hp').textContent = state.players?.[0]?.hp || 100;
-            document.getElementById('score').textContent = state.players?.[0]?.score || 0;
+            const player = me();
+            
+            document.getElementById('hp').textContent = player?.hp || 100;
+            document.getElementById('score').textContent = player?.score || 0;
             
             sendInput();
             requestAnimationFrame(render);

@@ -65,7 +65,12 @@ class Game:
         self.next_effect_id = 10000  # отдельный счётчик для эффектов
 
     def add_player(self, cid: int) -> Player:
-        p = Player(id=self.next_id, x=self.W//2, y=self.H//2, radius=12)
+        p = Player(
+            id=self.next_id,
+            x=random.randint(100, self.W - 100),
+            y=random.randint(100, self.H - 100),
+            radius=12
+        )
         self.next_id += 1
         self.players[cid] = p
         return p
@@ -89,48 +94,106 @@ class Game:
             
         # 🔒 Выстрел
         if shoot:
-            self.bullets.append(Bullet(
-                id=self.next_id, x=p.x, y=p.y, radius=4,
-                vx=math.cos(angle)*10, vy=math.sin(angle)*10
-            ))
+            bullet = Bullet(
+                id=self.next_id,
+                x=p.x,
+                y=p.y,
+                radius=4,
+                vx=math.cos(angle)*10,
+                vy=math.sin(angle)*10
+            )
+
+            bullet.owner = cid
+
+            self.bullets.append(bullet)
             self.next_id += 1
 
     def _check_collisions(self):
-        if not self.players: return
-        p = next(iter(self.players.values()))
-        
-        # Пуля vs Враг
-        for b in self.bullets[:]:  # копия списка для безопасного удаления
+        # Пуля -> враг
+        for b in self.bullets[:]:
+            bullet_owner = getattr(b, "owner", None)
+
             for e in self.enemies[:]:
                 if math.hypot(b.x - e.x, b.y - e.y) < (b.radius + e.radius):
-                    # 🔥 Попадание!
                     e.hp -= 1
-                    b.lifetime = 0  # уничтожаем пулю
-                    
-                    # Эффект попадания (для клиента)
+                    b.lifetime = 0
+
+                    # очки владельцу пули
+                    if bullet_owner in self.players:
+                        self.players[bullet_owner].score += 10
+
+                    # эффект попадания
                     self.hit_effects.append(HitEffect(
                         id=self.next_effect_id,
-                        x=e.x, y=e.y,
+                        x=e.x,
+                        y=e.y,
                         lifetime=0.2
                     ))
                     self.next_effect_id += 1
-                    
-                    p.score += 10
-                    
-                    # 💀 Смерть врага
+
+                    # смерть врага
                     if e.hp <= 0:
                         self._create_explosion(e.x, e.y)
-                        p.score += 50  # бонус за убийство
+
+                        if bullet_owner in self.players:
+                            self.players[bullet_owner].score += 50
+
                     break
-                    
-        # Враг vs Игрок
+
+        # Пуля -> игрок
+        for b in self.bullets[:]:
+
+            owner = getattr(b, "owner", None)
+
+            for cid, p in self.players.items():
+
+                # нельзя попасть в себя
+                if cid == owner:
+                    continue
+
+                if math.hypot(b.x - p.x, b.y - p.y) < (b.radius + p.radius):
+
+                    p.hp -= 10
+                    b.lifetime = 0
+
+                    # очки за попадание
+                    if owner in self.players:
+                        self.players[owner].score += 20
+
+                    self.hit_effects.append(HitEffect(
+                        id=self.next_effect_id,
+                        x=p.x,
+                        y=p.y,
+                        lifetime=0.2,
+                        color="#a0f"
+                    ))
+
+                    self.next_effect_id += 1
+
+                    # смерть игрока
+                    if p.hp <= 0:
+                        p.hp = 100
+                        p.x = random.randint(100, self.W - 100)
+                        p.y = random.randint(100, self.H - 100)
+
+                    break
+
+
+
+        # Враг -> игрок
         for e in self.enemies[:]:
-            if math.hypot(p.x - e.x, p.y - e.y) < (p.radius + e.radius):
-                p.hp -= 15
-                e.hp = 0
-                self._create_explosion(e.x, e.y)
-                if p.hp <= 0:
-                    p.hp = 100; p.score = 0; p.x = self.W//2; p.y = self.H//2
+            for cid, p in self.players.items():
+                if math.hypot(p.x - e.x, p.y - e.y) < (p.radius + e.radius):
+                    p.hp -= 15
+                    e.hp = 0
+
+                    self._create_explosion(e.x, e.y)
+
+                    if p.hp <= 0:
+                        p.hp = 100
+                        p.score = 0
+                        p.x = self.W // 2
+                        p.y = self.H // 2
 
 
     def _create_explosion(self, x: float, y: float):
@@ -169,13 +232,27 @@ class Game:
 
         # 2. Логика врагов
         if self.players:
-            target = next(iter(self.players.values()))
             for e in self.enemies:
-                dx, dy = target.x - e.x, target.y - e.y
-                dist = math.hypot(dx, dy)
-                if dist > 0:
-                    e.x += (dx/dist) * e.speed * self.dt * 60
-                    e.y += (dy/dist) * e.speed * self.dt * 60
+
+                nearest = None
+                nearest_dist = 999999
+
+                for p in self.players.values():
+                    dist = math.hypot(p.x - e.x, p.y - e.y)
+
+                    if dist < nearest_dist:
+                        nearest = p
+                        nearest_dist = dist
+
+                if nearest:
+                    dx = nearest.x - e.x
+                    dy = nearest.y - e.y
+
+                    dist = math.hypot(dx, dy)
+
+                    if dist > 0:
+                        e.x += (dx / dist) * e.speed * self.dt * 60
+                        e.y += (dy / dist) * e.speed * self.dt * 60
 
         # 3. Пули
         for b in self.bullets:
@@ -217,35 +294,7 @@ class Game:
         # Удаляем пустые взрывы
         self.explosions = [e for e in self.explosions if e.particles]
 
-    def _check_collisions(self):
-        if not self.players: return
-        p = next(iter(self.players.values()))
-        
-        # Пуля vs Враг
-        for b in self.bullets:
-            for e in self.enemies:
-                if math.hypot(b.x - e.x, b.y - e.y) < (b.radius + e.radius):
-                    e.hp -= 1
-                    b.lifetime = 0
-                    p.score += 10
-                    break
-                    
-        # Враг vs Игрок
-        for e in self.enemies:
-            if math.hypot(p.x - e.x, p.y - e.y) < (p.radius + e.radius):
-                p.hp -= 15
-                e.hp = 0  # враг умирает при касании
-                if p.hp <= 0:
-                    p.hp = 100; p.score = 0; p.x = self.W//2; p.y = self.H//2  # респавн
-
-    # def get_snapshot(self) -> dict:
-    #     return {
-    #         "players": [{"id": p.id, "x": p.x, "y": p.y, "hp": p.hp, "score": p.score} for p in self.players.values()],
-    #         "enemies": [{"id": e.id, "x": e.x, "y": e.y} for e in self.enemies],
-    #         "bullets": [{"id": b.id, "x": b.x, "y": b.y} for b in self.bullets],
-    #         "t": self.tick_rate * self.dt  # метка такта
-    #     }
-
+    
     def get_snapshot(self) -> dict:
         return {
             "players": [
@@ -260,6 +309,14 @@ class Game:
                 {"id": b.id, "x": b.x, "y": b.y, "vx": b.vx, "vy": b.vy, "radius": b.radius}
                 for b in self.bullets
             ],
-            "hits": [{"id": h.id, "x": h.x, "y": h.y} for h in self.hit_effects],
+            "hits": [
+                {
+                    "id": h.id,
+                    "x": h.x,
+                    "y": h.y,
+                    "color": h.color
+                }
+                for h in self.hit_effects
+            ],
             "explosions": [{"id": ex.id, "x": ex.x, "y": ex.y, "p": ex.particles} for ex in self.explosions],
         }
