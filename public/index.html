@@ -132,6 +132,41 @@
         }
         
         // === РЕНДЕР ===
+        // 🎨 Цвет полоски: зеленый (100%) → желтый (50%) → красный (0%)
+        function getHealthColor(hpPercent) {
+            hpPercent = Math.max(0, Math.min(1, hpPercent));
+            // Плавный переход через HSL: 120°=зеленый, 60°=желтый, 0°=красный
+            const hue = hpPercent * 120;
+            return `hsl(${hue}, 100%, 45%)`;
+        }
+
+        // 🩸 Отрисовка полоски здоровья над сущностью
+        function drawHealthBar(ctx, x, y, hp, maxWidth = 32) {
+            const hpPercent = Math.max(0, Math.min(1, hp / 100));
+            const barWidth = maxWidth * hpPercent;
+            const barHeight = 4;
+            const barY = y - 42; // Позиция: над именем (имя на y - 18)
+            
+            // Фон полоски (полупрозрачный чёрный)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(x - maxWidth/2 - 1, barY - 1, maxWidth + 2, barHeight + 2);
+            
+            // Активная часть (цветная)
+            ctx.fillStyle = getHealthColor(hpPercent);
+            ctx.fillRect(x - maxWidth/2, barY, barWidth, barHeight);
+            
+            // Тонкая белая рамка для контраста
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x - maxWidth/2, barY, maxWidth, barHeight);
+            
+            // 🔴 Мигание при критическом здоровье (<25%)
+            if (hp < 25 && Math.floor(Date.now() / 150) % 2 === 0) {
+                ctx.fillStyle = 'rgba(255, 50, 50, 0.3)';
+                ctx.fillRect(x - maxWidth/2, barY, maxWidth, barHeight);
+            }
+        }
+
         function render() {
             // Фон
             ctx.fillStyle = '#000';
@@ -269,6 +304,9 @@
                     p.x,
                     p.y - p.radius - 12
                 );
+
+                // 🩸 Полоска здоровья
+                drawHealthBar(ctx, p.x, p.y, p.hp, 32);
 
                 // // Прицел только у себя
                 // if(isMe) {

@@ -19,6 +19,16 @@ class Player(Entity):
     angle: float = 0.0
     is_bot: bool = False
     shoot_cooldown: float = 0.0 # время до следующего выстрела
+    # добавил для bot_ppo_2
+    enemy_hits: int = 0
+    player_hits: int = 0
+    survival_ticks: int = 0
+
+    def respawn(self, width, height):
+        self.hp = 100
+        self.score = 0
+        self.x = random.randint(100, width - 100)
+        self.y = random.randint(100, height - 100)
 
 @dataclass
 class Enemy(Entity):
@@ -132,7 +142,10 @@ class Game:
 
                     # очки владельцу пули
                     if bullet_owner in self.players:
-                        self.players[bullet_owner].score += 10
+                        owner_player = self.players[bullet_owner]
+
+                        owner_player.score += 10
+                        owner_player.enemy_hits += 1
 
                     # эффект попадания
                     self.hit_effects.append(HitEffect(
@@ -170,7 +183,10 @@ class Game:
 
                     # очки за попадание
                     if owner in self.players:
-                        self.players[owner].score += 20
+                        owner_player = self.players[owner]
+
+                        owner_player.score += 20
+                        owner_player.player_hits += 1
 
                     self.hit_effects.append(HitEffect(
                         id=self.next_effect_id,
@@ -188,9 +204,10 @@ class Game:
                         #     # dead_bots.append(cid)
                         #     pass
                         # else:
-                            p.hp = 100
-                            p.x = random.randint(100, self.W - 100)
-                            p.y = random.randint(100, self.H - 100)
+                            # p.hp = 100
+                            # p.x = random.randint(100, self.W - 100)
+                            # p.y = random.randint(100, self.H - 100)
+                            p.respawn(self.W, self.H)
 
                     break
 
@@ -206,10 +223,11 @@ class Game:
                     self._create_explosion(e.x, e.y)
 
                     if p.hp <= 0:
-                        p.hp = 100
-                        p.score = 0
-                        p.x = self.W // 2
-                        p.y = self.H // 2
+                        # p.hp = 100
+                        # p.score = 0
+                        # p.x = self.W // 2
+                        # p.y = self.H // 2
+                        p.respawn(self.W, self.H)
 
 
     def _create_explosion(self, x: float, y: float):
@@ -236,6 +254,7 @@ class Game:
     def tick(self):
         # cooldowns
         for p in self.players.values():
+            p.survival_ticks += 1
             if p.shoot_cooldown > 0:
                 p.shoot_cooldown -= self.dt
 
@@ -327,7 +346,10 @@ class Game:
                     "hp": p.hp,
                     "score": p.score,
                     "radius": p.radius,
-                    "angle": p.angle
+                    "angle": p.angle,
+                    "enemy_hits": p.enemy_hits,
+                    "player_hits": p.player_hits,
+                    "survival_ticks": p.survival_ticks
                 }
                 for p in self.players.values()
             ],
