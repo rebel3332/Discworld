@@ -201,11 +201,23 @@
             
             // Враги
             state.enemies?.forEach(e => {
+                // Цвет врага в зависимости от модели
+                let enemyColor = '#f44'; // по умолчанию
+                let strokeColor = '#800';
+
+                if(e.model === "simple") {
+                    enemyColor = '#f88';
+                    strokeColor = '#a00';
+                } else if(e.model === "simple_boss") {
+                    enemyColor = '#f44';
+                    strokeColor = '#800';
+                }
+
                 // Мигание при низком HP
                 if(e.flash && Math.floor(Date.now()/100) % 2 === 0) {
-                    ctx.fillStyle = '#f88';
+                    ctx.fillStyle = enemyColor;
                 } else {
-                    ctx.fillStyle = '#f44';
+                    ctx.fillStyle = strokeColor;
                 }
                 ctx.beginPath();
                 ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2);
@@ -214,6 +226,8 @@
                 ctx.strokeStyle = '#800';
                 ctx.lineWidth = 2;
                 ctx.stroke();
+                // 🩸 Полоска здоровья врага (макс. 3 HP)
+                drawHealthBar(ctx, e.x, e.y, e.hp, 30, 24); // maxWidth=24 для компактности
             });
             
             // // Игрок

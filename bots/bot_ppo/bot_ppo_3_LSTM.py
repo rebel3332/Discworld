@@ -21,7 +21,7 @@ import websockets
 
 
 SERVER = "ws://127.0.0.1:8000/ws"
-MODEL_PATH = "ppo_2_shared.pt"
+MODEL_PATH = "ppo_3_shared.pt"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

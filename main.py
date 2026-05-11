@@ -40,63 +40,169 @@ app = FastAPI(title="Hacker 2.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="public"), name="static")
 
 async def game_loop():
+
     """
-    Главный цикл игры: 60 тиков в секунду.
-    1. Считывает ввод от клиентов.
-    2. Обновляет состояние игры (физика, спавн).
-    3. Рассылает новое состояние всем подключенным.
+    Turbo RL game loop.
+
+    Features:
+    - realtime mode when humans connected
+    - turbo simulation when only bots
+    - no websocket spam in training mode
+    - accelerated evolution/RL training
     """
+
     while True:
+
         try:
-            # 1. Обработка ввода
+
+            # =====================================================
+            # INPUTS
+            # =====================================================
+
             for cid, inp in list(client_inputs.items()):
-                if cid in active_connections:  # Проверяем, жив ли клиент
+
+                if cid in active_connections:
+
                     game.process_inputs(
-                        cid, 
-                        inp.get("dx", 0), 
-                        inp.get("dy", 0), 
-                        inp.get("shoot", False), 
+                        cid,
+                        inp.get("dx", 0),
+                        inp.get("dy", 0),
+                        inp.get("shoot", False),
                         inp.get("angle", 0)
                     )
-                # Сбрасываем ввод, чтобы не применять его каждый кадр
-                client_inputs[cid] = {"dx": 0, "dy": 0, "shoot": False}
-            
-            # 2. Логика игры
-            game.tick()
-            
-            # 3. Подготовка и отправка пакета
-            snapshot = json.dumps(game.get_snapshot())
-            
-            # Рассылаем всем активным клиентам
-            dead_clients = []
-            # player clients (рассылка игрокам)
-            for cid, ws in active_connections.items():
-                try:
-                    await ws.send_text(snapshot)
-                except Exception as e:
-                    # Если отправка не удалась, клиент, скорее всего, отключился
-                    logger.warning(f"❌ Failed to send to {cid}: {e}")
-                    dead_clients.append(cid)
-            # spectator clients (рассылка зрителям)
-            for sid, ws in list(spectator_connections.items()):
-                try:
-                    await ws.send_text(snapshot)
-                except Exception:
-                    spectator_connections.pop(sid, None)
-            
-            # Чистим список от "мертвых душ"
-            for cid in dead_clients:
-                active_connections.pop(cid, None)
-                client_inputs.pop(cid, None)
-                game.remove_player(cid)
-                logger.info(f"🔌 Cleaned up disconnected client {cid}")
 
-            # Держим частоту 60 FPS (1/60 секунды)
-            await asyncio.sleep(1/60)
-            
+                client_inputs[cid] = {
+                    "dx": 0,
+                    "dy": 0,
+                    "shoot": False
+                }
+
+            # =====================================================
+            # DETECT REAL HUMANS
+            # =====================================================
+
+            real_players = 0
+
+            for p in game.players.values():
+
+                if not p.is_bot:
+                    real_players += 1
+
+            has_spectators = len(spectator_connections) > 0
+
+            realtime_mode = (
+                real_players > 0
+                or has_spectators
+            )
+
+            # =====================================================
+            # FAST MODE
+            # =====================================================
+
+            if realtime_mode:
+
+                game.set_fast_mode(False)
+
+            else:
+
+                game.set_fast_mode(True)
+
+            # =====================================================
+            # SIMULATION
+            # =====================================================
+
+            # for _ in range(game.simulation_speed):
+            if (True):
+                game.tick()
+
+            # =====================================================
+            # SNAPSHOT
+            # =====================================================
+
+            if realtime_mode:
+
+                snapshot = json.dumps(
+                    game.get_snapshot()
+                )
+
+            dead_clients = []
+
+            # =================================================
+            # PLAYERS
+            # =================================================
+
+            for cid, ws in list(active_connections.items()):
+
+                try:
+
+                    await ws.send_text(snapshot)
+
+                except Exception as e:
+
+                    logger.warning(
+                        f"❌ Failed to send to {cid}: {e}"
+                    )
+
+                    dead_clients.append(cid)
+
+            # =================================================
+            # SPECTATORS
+            # =================================================
+
+            for sid, ws in list(spectator_connections.items()):
+
+                try:
+
+                    await ws.send_text(snapshot)
+
+                except Exception:
+
+                    spectator_connections.pop(
+                        sid,
+                        None
+                    )
+
+            # =================================================
+            # CLEANUP
+            # =================================================
+
+            for cid in dead_clients:
+
+                active_connections.pop(cid, None)
+
+                client_inputs.pop(cid, None)
+
+                game.remove_player(cid)
+
+                logger.info(
+                    f"🔌 Cleaned up disconnected client {cid}"
+                )
+
+            # Задержка для реального времени или ускорение для тренировки
+            if realtime_mode:
+                # realtime FPS
+                await asyncio.sleep(1 / 60)
+
+            else:
+
+                # =================================================
+                # TURBO TRAINING MODE
+                # =================================================
+
+                # no websocket
+                # no rendering
+                # no sleeps
+
+                await asyncio.sleep(0)
+
         except Exception as e:
-            logger.error(f"💥 Critical error in game loop: {e}", exc_info=True)
-            await asyncio.sleep(1) # Пауза чтобы не спамить ошибками если цикл падает постоянно
+
+            logger.error(
+                f"💥 Critical error in game loop: {e}",
+                exc_info=True
+            )
+
+            await asyncio.sleep(1)
 
 # --- Эндпоинты ---
 

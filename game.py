@@ -34,6 +34,7 @@ class Player(Entity):
 class Enemy(Entity):
     hp: int = 3
     speed: float = 3.5
+    model: str = "simple" # для будущих типов врагов
 
 @dataclass
 class Bullet(Entity):
@@ -74,10 +75,23 @@ class Game:
         
         self.spawn_timer = 0.0
         self.spawn_interval = 2.0  # сек
+        self.enemy_count = 0 # число заспавненных врагов (для прогрессии сложности)
 
         self.hit_effects: List[HitEffect] = []
         self.explosions: List[Explosion] = []
         self.next_effect_id = 10000  # отдельный счётчик для эффектов
+
+        # turbo training mode
+        self.fast_mode = False
+        self.simulation_speed = 1
+
+    def set_fast_mode(self, enabled: bool):
+        self.fast_mode = enabled
+        if enabled:
+            # turbo speed
+            self.simulation_speed = 50
+        else:
+            self.simulation_speed = 1
 
     def add_player(self, cid: int, name: str | None = None) -> Player:
         p = Player(
@@ -250,68 +264,87 @@ class Game:
         ))
         self.next_effect_id += 1
 
+    def world_tick(self) -> bool:
+        # ❗ если никого нет в мире — полностью стопаем логику
+        if (
+            len(self.players) == 0
+        ):
+            return  False
+        return True
 
     def tick(self):
-        # cooldowns
-        for p in self.players.values():
-            p.survival_ticks += 1
-            if p.shoot_cooldown > 0:
-                p.shoot_cooldown -= self.dt
+        if self.world_tick():
+            # cooldowns
+            for p in self.players.values():
+                p.survival_ticks += 1
+                if p.shoot_cooldown > 0:
+                    p.shoot_cooldown -= self.dt
 
-        # 1. Спавн врагов (без изменений)
-        self.spawn_timer += self.dt
-        if self.spawn_timer >= self.spawn_interval:
-            self.spawn_timer = 0
-            side = random.choice(['top','bottom','left','right'])
-            if side == 'top': x, y = random.uniform(0, self.W), -30
-            elif side == 'bottom': x, y = random.uniform(0, self.W), self.H + 30
-            elif side == 'left': x, y = -30, random.uniform(0, self.H)
-            else: x, y = self.W + 30, random.uniform(0, self.H)
-            self.enemies.append(Enemy(id=self.next_id, x=x, y=y, radius=14))
-            self.next_id += 1
+            # 1. Спавн врагов (без изменений)
+            self.spawn_timer += self.dt
+            if self.spawn_timer >= self.spawn_interval:
+                self.spawn_timer = 0
+                self.enemy_count += 1
+                if (self.enemy_count % 10 == 0):
+                    enemy_model = "simple_boss"
+                    enemy_hp = 30
+                else:
+                    enemy_model = "simple" # вид врага
+                    enemy_hp = 3
+            
+                side = random.choice(['top','bottom','left','right'])
+                if side == 'top': x, y = random.uniform(0, self.W), -30
+                elif side == 'bottom': x, y = random.uniform(0, self.W), self.H + 30
+                elif side == 'left': x, y = -30, random.uniform(0, self.H)
+                else: x, y = self.W + 30, random.uniform(0, self.H)
+                # self.enemies.append(Enemy(id=self.next_id, x=x, y=y, radius=14))
 
-        # 2. Логика врагов
-        if self.players:
-            for e in self.enemies:
+                self.enemies.append(Enemy(id=self.next_id, x=x, y=y, radius=14, hp=enemy_hp, model=enemy_model))
+                self.next_id += 1
 
-                nearest = None
-                nearest_dist = 999999
+            # 2. Логика врагов
+            if self.players:
+                for e in self.enemies:
 
-                for p in self.players.values():
-                    dist = math.hypot(p.x - e.x, p.y - e.y)
+                    nearest = None
+                    nearest_dist = 999999
 
-                    if dist < nearest_dist:
-                        nearest = p
-                        nearest_dist = dist
+                    for p in self.players.values():
+                        dist = math.hypot(p.x - e.x, p.y - e.y)
 
-                if nearest:
-                    dx = nearest.x - e.x
-                    dy = nearest.y - e.y
+                        if dist < nearest_dist:
+                            nearest = p
+                            nearest_dist = dist
 
-                    dist = math.hypot(dx, dy)
+                    if nearest:
+                        dx = nearest.x - e.x
+                        dy = nearest.y - e.y
 
-                    if dist > 0:
-                        e.x += (dx / dist) * e.speed * self.dt * 60
-                        e.y += (dy / dist) * e.speed * self.dt * 60
+                        dist = math.hypot(dx, dy)
 
-        # 3. Пули
-        for b in self.bullets:
-            b.x += b.vx * self.dt * 60
-            b.y += b.vy * self.dt * 60
-            b.lifetime -= self.dt
+                        if dist > 0:
+                            e.x += (dx / dist) * e.speed * self.dt * 60
+                            e.y += (dy / dist) * e.speed * self.dt * 60
 
-        # 4. Коллизии
-        self._check_collisions()
+            # 3. Пули
+            for b in self.bullets:
+                b.x += b.vx * self.dt * 60
+                b.y += b.vy * self.dt * 60
+                b.lifetime -= self.dt
 
-        # 5. Очистка сущностей (классический способ)
-        # 🔹 Пули: удаляем, если время вышло или улетели за карту
-        self.bullets = [b for b in self.bullets if b.lifetime > 0 and 0 < b.x < self.W and 0 < b.y < self.H]
-        
-        # 🔹 Враги: удаляем, если здоровье <= 0
-        self.enemies = [e for e in self.enemies if e.hp > 0]
-        
-        # 🔹 Эффекты попаданий: обновляем время жизни и фильтруем
-        self._update_effects()
+            # 4. Коллизии
+            self._check_collisions()
+
+            # 5. Очистка сущностей (классический способ)
+            # 🔹 Пули: удаляем, если время вышло или улетели за карту
+            self.bullets = [b for b in self.bullets if b.lifetime > 0 and 0 < b.x < self.W and 0 < b.y < self.H]
+            
+            # 🔹 Враги: удаляем, если здоровье <= 0
+            self.enemies = [e for e in self.enemies if e.hp > 0]
+            
+            # 🔹 Эффекты попаданий: обновляем время жизни и фильтруем
+            if not self.fast_mode:
+                self._update_effects()
 
     def _update_effects(self):
         """Обновляет и очищает визуальные эффекты (без моржового оператора)"""
@@ -354,7 +387,14 @@ class Game:
                 for p in self.players.values()
             ],
             "enemies": [
-                {"id": e.id, "x": e.x, "y": e.y, "radius": e.radius, "flash": e.hp < 3}
+                {
+                    "model": e.model,
+                    "id": e.id, 
+                    "x": e.x, 
+                    "y": e.y, 
+                    "radius": e.radius,
+                    "hp": e.hp,
+                    "flash": e.hp < 3}
                 for e in self.enemies
             ],
             "bullets": [
@@ -370,5 +410,8 @@ class Game:
                 }
                 for h in self.hit_effects
             ],
-            "explosions": [{"id": ex.id, "x": ex.x, "y": ex.y, "p": ex.particles} for ex in self.explosions],
+            "explosions": [
+                {"id": ex.id, "x": ex.x, "y": ex.y, "p": ex.particles} 
+                for ex in self.explosions[-20:]   # ⬅️ ограничение количества взрывов в снимке (для оптимизации)
+            ],
         }

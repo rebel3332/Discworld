@@ -42,6 +42,8 @@ Q-Learning Bot
 """
 
 SERVER = "ws://127.0.0.1:8000/ws"
+# SERVER = "ws://216.24.57.7:80/ws" #discworld.onrender.com
+
 
 
 class QLearningBot:
