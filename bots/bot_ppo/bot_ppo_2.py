@@ -167,7 +167,7 @@ class PPOBot:
 
             await ws.send(json.dumps({
                 "type": "hello",
-                "name": "PPOBot"
+                "name": "PPOBot2"
             }))
 
             while True:

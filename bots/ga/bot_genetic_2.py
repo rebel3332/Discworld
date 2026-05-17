@@ -19,13 +19,13 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 STATE_SIZE = 16
 ACTION_SIZE = 6
 
-POPULATION_SIZE = 32
+POPULATION_SIZE = 100
 ELITE_COUNT = 6
 MUTATION_POWER = 0.02
 EPISODE_TICKS = 3000
-MAX_AGENT_LIFETIME = 100
+MAX_AGENT_LIFETIME = 300
 
-SAVE_FILE = "bot_generic_2_population.pt"
+SAVE_FILE = "bot_genetic_2_population.pt"
 
 
 # =========================================================

@@ -10,15 +10,17 @@ class Entity:
     x: float
     y: float
     radius: float
+    angle: float = 0.0
 
 @dataclass
 class Player(Entity):
     name: str = "Player"
     hp: int = 100
     score: int = 0
-    angle: float = 0.0
     is_bot: bool = False
     shoot_cooldown: float = 0.0 # время до следующего выстрела
+    vx: float = 0.0
+    vy: float = 0.0
     # добавил для bot_ppo_2
     enemy_hits: int = 0
     player_hits: int = 0
@@ -35,6 +37,7 @@ class Enemy(Entity):
     hp: int = 3
     speed: float = 3.5
     model: str = "simple" # для будущих типов врагов
+    isMoving: bool = False
 
 @dataclass
 class Bullet(Entity):
@@ -116,6 +119,8 @@ class Game:
         if cid not in self.players: return
         p = self.players[cid]
         p.angle = angle
+        p.vx = dx
+        p.vy = dy
         
         # 🔒 Движение: нормализуем вектор (анти-спидхак)
         if dx != 0 or dy != 0:
@@ -321,10 +326,15 @@ class Game:
                         dy = nearest.y - e.y
 
                         dist = math.hypot(dx, dy)
+                        if dx != 0 or dy != 0:
+                            e.isMoving = True
+                        else:   
+                            e.isMoving = False
 
                         if dist > 0:
                             e.x += (dx / dist) * e.speed * self.dt * 60
                             e.y += (dy / dist) * e.speed * self.dt * 60
+                            e.angle = math.atan2(dy, dx)
 
             # 3. Пули
             for b in self.bullets:
@@ -376,6 +386,8 @@ class Game:
                     "name": p.name,
                     "x": p.x,
                     "y": p.y,
+                    "vx": p.vx,
+                    "vy": p.vy,
                     "hp": p.hp,
                     "score": p.score,
                     "radius": p.radius,
@@ -392,8 +404,10 @@ class Game:
                     "id": e.id, 
                     "x": e.x, 
                     "y": e.y, 
+                    "angle": e.angle,
                     "radius": e.radius,
                     "hp": e.hp,
+                    "isMoving": e.isMoving,
                     "flash": e.hp < 3}
                 for e in self.enemies
             ],

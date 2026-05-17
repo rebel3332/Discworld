@@ -17,9 +17,16 @@
   <div id="error-log"></div>
   <canvas id="game" width="800" height="600"></canvas>
   
-    <script>
+    <script type="module">
+        // import { renderGame } from './js/render.js';
+        import { createRenderer } from '/static/render.js';
+
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        const playerSheet = new Image();
+        playerSheet.src = '/static/assets/player_sheet.png';
+
         const statusEl = document.getElementById('status');
 
         const params = new URLSearchParams(location.search);
@@ -32,18 +39,96 @@
         let mouse = { x: canvas.width/2, y: canvas.height/2, down: false };
         // let shootCooldown = 0; Перенес обработку на сервер
         let lastShotTime = 0;
+        let animationTime = 0;
         
         // Настройки эффектов
         const EFFECTS = {
+            // Эффекты выстрелов и попаданий
             muzzleFlash: { radius: 15, life: 0.08, color: "#ff8" },
+            // Эффект следа от пули (можно расширить до спрайта дыма)
             bulletTrail: { count: 3, life: 0.1 },
+            // Эффект попадания (можно расширить до анимации взрыва)
             hitFlash: { color: "#f44", radius: 20 },
+            // Эффект взрыва (можно расширить до спрайта взрыва)
             explosion: { particles: 12, colors: ["#f84", "#fa2", "#ff6"] }
         };
         
         // Локальные эффекты (не синхронизируются с сервером)
         let localEffects = [];
+
+        let spritesLoaded = false;
+
+        const SPRITES = {
+
+            player: {
+
+                idle: [
+                    // [32,157,32,32],
+                    // [275,157,32,32],
+                    [42,192,132,132],
+                    [237,192,132,132]
+                ],
+
+                walk: [
+                    [42,432,85,127],
+                    [145,432,85,127],
+                    [245,432,85,127],
+                    [343,432,85,127],
+                    [440,432,85,127],
+                    [530,432,80,127],
+                ]
+            },
+
+            weapon: {
+                rifle: [661,244,143,80]
+            },
+
+            muzzle: [
+                [274,676,74,74],
+                [363,670,103,67],
+                [468,661,123,80]
+            ],
+
+            bullet: [671,777,40,20],
+
+            hit: [
+                [650, 860, 90, 90],
+                [760, 850, 120, 120],
+                [870, 840, 150, 150]
+            ]
+        };
         
+        const game = {
+            ctx,
+            canvas,
+            state,
+            myId,
+            spritesLoaded,
+            playerSheet,
+            SPRITES,
+            EFFECTS,
+            localEffects,
+            spectatorMode,
+            animationTime: 0,
+
+            me() {
+                return this.state.players?.find(
+                    p => p.id === this.myId
+                );
+            }
+        };
+
+
+        playerSheet.onload = () => {
+            console.log("✅ sprites loaded");
+            game.spritesLoaded = true;
+        };
+
+        playerSheet.onerror = () => {
+            console.error("❌ sprite load failed");
+        };
+
+
         // WebSocket
         let ws;
         function connect() {
@@ -67,11 +152,11 @@
                     const data = JSON.parse(e.data);
 
                     if(data.type === 'welcome') {
-                        myId = data.player_id;
+                        game.myId = data.player_id;
                         return;
                     }
 
-                    state = data;
+                    game.state = data;
 
                 } catch(err) {
                     console.error("Parse error:", err);
@@ -79,10 +164,6 @@
             };
         }
 
-        function me() {
-            return state.players?.find(p => p.id === myId);
-        }
-        
         // Управление
         window.addEventListener('keydown', e => keys[e.code] = true);
         window.addEventListener('keyup', e => keys[e.code] = false);
@@ -97,7 +178,7 @@
         // Отправка ввода
         function sendInput() {
             if(!ws || ws.readyState !== WebSocket.OPEN) return;
-            if(spectatorMode) return;
+            if(game.spectatorMode) return;
             
             let dx = 0, dy = 0;
             if(keys['KeyW']||keys['ArrowUp']) dy = -1;
@@ -106,8 +187,8 @@
             if(keys['KeyD']||keys['ArrowRight']) dx = 1;
             
             let angle = 0;
-            if(me()) {
-                const p = me();
+            if(game.me()) {
+                const p = game.me();
                 angle = Math.atan2(mouse.y - p.y, mouse.x - p.x);
             }
             
@@ -115,13 +196,13 @@
             if(canShoot) {
                 //shootCooldown = 10; // ~6 выстрелов/сек
                 // Локальный эффект выстрела (мгновенный, без задержки сети)
-                if(me()) {
-                    const p = me();
-                    localEffects.push({
+                if(game.me()) {
+                    const p = game.me();
+                    game.localEffects.push({
                         type: 'muzzle',
                         x: p.x + Math.cos(angle)*15,
                         y: p.y + Math.sin(angle)*15,
-                        life: EFFECTS.muzzleFlash.life,
+                        life: game.EFFECTS.muzzleFlash.life,
                         angle: angle
                     });
                 }
@@ -130,297 +211,7 @@
             
             ws.send(JSON.stringify({ dx, dy, shoot: canShoot, angle }));
         }
-        
-        // === РЕНДЕР ===
-        // 🎨 Цвет полоски: зеленый (100%) → желтый (50%) → красный (0%)
-        function getHealthColor(hpPercent) {
-            hpPercent = Math.max(0, Math.min(1, hpPercent));
-            // Плавный переход через HSL: 120°=зеленый, 60°=желтый, 0°=красный
-            const hue = hpPercent * 120;
-            return `hsl(${hue}, 100%, 45%)`;
-        }
-
-        // 🩸 Отрисовка полоски здоровья над сущностью
-        function drawHealthBar(ctx, x, y, hp, maxWidth = 32) {
-            const hpPercent = Math.max(0, Math.min(1, hp / 100));
-            const barWidth = maxWidth * hpPercent;
-            const barHeight = 4;
-            const barY = y - 42; // Позиция: над именем (имя на y - 18)
-            
-            // Фон полоски (полупрозрачный чёрный)
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-            ctx.fillRect(x - maxWidth/2 - 1, barY - 1, maxWidth + 2, barHeight + 2);
-            
-            // Активная часть (цветная)
-            ctx.fillStyle = getHealthColor(hpPercent);
-            ctx.fillRect(x - maxWidth/2, barY, barWidth, barHeight);
-            
-            // Тонкая белая рамка для контраста
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x - maxWidth/2, barY, maxWidth, barHeight);
-            
-            // 🔴 Мигание при критическом здоровье (<25%)
-            if (hp < 25 && Math.floor(Date.now() / 150) % 2 === 0) {
-                ctx.fillStyle = 'rgba(255, 50, 50, 0.3)';
-                ctx.fillRect(x - maxWidth/2, barY, maxWidth, barHeight);
-            }
-        }
-
-        function render() {
-            // Фон
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Сетка
-            ctx.strokeStyle = '#080808';
-            ctx.lineWidth = 1;
-            for(let x=0; x<canvas.width; x+=50) {
-                ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x, canvas.height); ctx.stroke();
-            }
-            for(let y=0; y<canvas.height; y+=50) {
-                ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width, y); ctx.stroke();
-            }
-            
-            // Пули со следом
-            state.bullets?.forEach(b => {
-                // След (частицы позади)
-                for(let i=0; i<EFFECTS.bulletTrail.count; i++) {
-                    const t = i / EFFECTS.bulletTrail.count;
-                    ctx.fillStyle = `rgba(255, 255, 100, ${0.3 * (1-t)})`;
-                    ctx.beginPath();
-                    ctx.arc(b.x - b.vx*0.02*i, b.y - b.vy*0.02*i, b.radius * (1-t*0.5), 0, Math.PI*2);
-                    ctx.fill();
-                }
-                // Сама пуля
-                ctx.fillStyle = '#ff0';
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2);
-                ctx.fill();
-            });
-            
-            // Враги
-            state.enemies?.forEach(e => {
-                // Цвет врага в зависимости от модели
-                let enemyColor = '#f44'; // по умолчанию
-                let strokeColor = '#800';
-
-                if(e.model === "simple") {
-                    enemyColor = '#f88';
-                    strokeColor = '#a00';
-                } else if(e.model === "simple_boss") {
-                    enemyColor = '#f44';
-                    strokeColor = '#800';
-                }
-
-                // Мигание при низком HP
-                if(e.flash && Math.floor(Date.now()/100) % 2 === 0) {
-                    ctx.fillStyle = enemyColor;
-                } else {
-                    ctx.fillStyle = strokeColor;
-                }
-                ctx.beginPath();
-                ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2);
-                ctx.fill();
-                // Обводка
-                ctx.strokeStyle = '#800';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                // 🩸 Полоска здоровья врага (макс. 3 HP)
-                drawHealthBar(ctx, e.x, e.y, e.hp, 30, 24); // maxWidth=24 для компактности
-            });
-            
-            // // Игрок
-            // if(me()) {
-            //     const p = state.players[0];
-            //     // Тело
-            //     ctx.fillStyle = '#0f0';
-            //     ctx.beginPath();
-            //     ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
-            //     ctx.fill();
-            //     ctx.strokeStyle = '#080';
-            //     ctx.lineWidth = 2;
-            //     ctx.stroke();
-                
-            //     // Прицел
-            //     const angle = Math.atan2(mouse.y - p.y, mouse.x - p.x);
-            //     ctx.strokeStyle = '#0f0';
-            //     ctx.lineWidth = 2;
-            //     ctx.beginPath();
-            //     ctx.moveTo(p.x, p.y);
-            //     ctx.lineTo(p.x + Math.cos(angle)*25, p.y + Math.sin(angle)*25);
-            //     ctx.stroke();
-                
-            //     // UI: кулдаун стрельбы
-            //     if(shootCooldown > 0) {
-            //         ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
-            //         ctx.beginPath();
-            //         ctx.arc(p.x, p.y, p.radius + 5 + shootCooldown, 0, Math.PI*2);
-            //         ctx.fill();
-            //     }
-            // }
-
-            // // Другие игроки
-            // state.players?.forEach(p => {
-
-            //     if(p.id === myId) return;
-
-            //     ctx.fillStyle = '#a0f';
-
-            //     ctx.beginPath();
-            //     ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-            //     ctx.fill();
-
-            //     ctx.strokeStyle = '#60a';
-            //     ctx.lineWidth = 2;
-            //     ctx.stroke();
-            // });
-
-            // Игроки
-            state.players?.forEach(p => {
-
-                const isMe = p.id === myId;
-
-                // Тело
-                ctx.fillStyle = isMe ? '#0f0' : '#a0f';
-
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.strokeStyle = isMe ? '#080' : '#60a';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-
-                // Оружие
-                const gunLength = 25;
-
-                ctx.strokeStyle = isMe ? '#0f0' : '#d0f';
-                ctx.lineWidth = 4;
-
-                ctx.beginPath();
-
-                ctx.moveTo(p.x, p.y);
-
-                ctx.lineTo(
-                    p.x + Math.cos(p.angle) * gunLength,
-                    p.y + Math.sin(p.angle) * gunLength
-                );
-
-                ctx.stroke();
-
-                // имя
-                ctx.fillStyle = '#fff';
-                ctx.font = '12px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText(
-                    p.name || 'Player',
-                    p.x,
-                    p.y - p.radius - 12
-                );
-
-                // 🩸 Полоска здоровья
-                drawHealthBar(ctx, p.x, p.y, p.hp, 32);
-
-                // // Прицел только у себя
-                // if(isMe) {
-
-                //     const angle = Math.atan2(
-                //         mouse.y - p.y,
-                //         mouse.x - p.x
-                //     );
-
-                //     ctx.strokeStyle = '#0f0';
-                //     ctx.lineWidth = 2;
-
-                //     ctx.beginPath();
-                //     ctx.moveTo(p.x, p.y);
-                //     ctx.lineTo(
-                //         p.x + Math.cos(angle) * 25,
-                //         p.y + Math.sin(angle) * 25
-                //     );
-
-                //     ctx.stroke();
-
-                //     // Кулдаун
-                //     if(shootCooldown > 0) {
-
-                //         ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
-
-                //         ctx.beginPath();
-                //         ctx.arc(
-                //             p.x,
-                //             p.y,
-                //             p.radius + 5 + shootCooldown,
-                //             0,
-                //             Math.PI * 2
-                //         );
-
-                //         ctx.fill();
-                //     }
-                // }
-            });
-            
-            // === ЭФФЕКТЫ ===
-            
-            // Попадания (от сервера)
-            state.hits?.forEach(h => {
-                ctx.fillStyle = h.color || `rgba(255, 100, 100, ${0.8})`;
-                ctx.beginPath();
-                ctx.arc(h.x, h.y, EFFECTS.hitFlash.radius, 0, Math.PI*2);
-                ctx.fill();
-                ctx.fillStyle = `rgba(255, 200, 200, ${0.5})`;
-                ctx.beginPath();
-                ctx.arc(h.x, h.y, EFFECTS.hitFlash.radius * 1.5, 0, Math.PI*2);
-                ctx.fill();
-            });
-            
-            // Взрывы
-            state.explosions?.forEach(ex => {
-                ex.particles?.forEach(pt => {
-                    ctx.fillStyle = pt.color;
-                    ctx.globalAlpha = pt.life / 0.8;
-                    ctx.beginPath();
-                    ctx.arc(pt.x, pt.y, 3, 0, Math.PI*2);
-                    ctx.fill();
-                });
-                ctx.globalAlpha = 1;
-            });
-            
-            // Локальные эффекты (мгновенные)
-            localEffects = localEffects.filter(effect => {
-                if(effect.type === 'muzzle') {
-                    ctx.fillStyle = `rgba(255, 200, 100, ${effect.life / EFFECTS.muzzleFlash.life})`;
-                    ctx.beginPath();
-                    ctx.arc(effect.x, effect.y, EFFECTS.muzzleFlash.radius * (effect.life / EFFECTS.muzzleFlash.life), 0, Math.PI*2);
-                    ctx.fill();
-                    // Луч
-                    ctx.strokeStyle = `rgba(255, 255, 200, ${effect.life / EFFECTS.muzzleFlash.life})`;
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.moveTo(effect.x - Math.cos(effect.angle)*10, effect.y - Math.sin(effect.angle)*10);
-                    ctx.lineTo(effect.x + Math.cos(effect.angle)*20, effect.y + Math.sin(effect.angle)*20);
-                    ctx.stroke();
-                    
-                    effect.life -= 1/60;
-                    return effect.life > 0;
-                }
-                return false;
-            });
-            
-            // UI
-            if(spectatorMode) {
-                document.getElementById('ui').style.display = 'none';
-            } else {
-                const player = me();
-                
-                document.getElementById('hp').textContent = player?.hp || 100;
-                document.getElementById('score').textContent = player?.score || 0;
-            }
-            // sendInput(); // Перенес в отдельный loop для более стабильной отправки данных
-            requestAnimationFrame(render);
-        }
-        
+               
         // Старт
         console.log("🎮 Client started");
 
@@ -428,8 +219,10 @@
 
         // отдельный network loop
         setInterval(sendInput, 1000 / 60);
-
-        render();
+        
+        // // === РЕНДЕР ===
+        const renderer = createRenderer(game);
+        renderer.render();
     </script>
 </body>
 </html>
