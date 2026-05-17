@@ -111,6 +111,10 @@
             spectatorMode,
             animationTime: 0,
 
+            camera: {
+                x: 0,
+                y: 0
+            },
             me() {
                 return this.state.players?.find(
                     p => p.id === this.myId
@@ -187,9 +191,13 @@
             if(keys['KeyD']||keys['ArrowRight']) dx = 1;
             
             let angle = 0;
+            const worldMouseX =
+                mouse.x + game.camera.x;
+                const worldMouseY =
+                mouse.y + game.camera.y;
             if(game.me()) {
                 const p = game.me();
-                angle = Math.atan2(mouse.y - p.y, mouse.x - p.x);
+                angle = Math.atan2(worldMouseY - p.y, worldMouseX - p.x);
             }
             
             const canShoot = mouse.down; // && shootCooldown <= 0;

@@ -1,6 +1,8 @@
 // render.js
+import { TILE_SIZE, getTile, getTileColor } from './terrain.js';
 
 export function createRenderer(game) {
+
 
     const ctx = game.ctx;
     const canvas = game.canvas;
@@ -120,48 +122,44 @@ export function createRenderer(game) {
 
         ctx.fillText(
             p.name || 'Player',
-            p.x,
-            p.y - 24
+            p.x - game.camera.x,
+            p.y - game.camera.y - 24
         );
     }
 
     function renderBackground() {
+        // Черный фон как фон
+        // ctx.fillStyle = '#000';
+        // ctx.fillRect(
+        //     0,
+        //     0,
+        //     canvas.width,
+        //     canvas.height
+        // );
 
-        ctx.fillStyle = '#000';
-
-        ctx.fillRect(
-            0,
-            0,
-            canvas.width,
-            canvas.height
-        );
+        renderTerrain() 
     }
 
     function renderGrid() {
-
         ctx.strokeStyle = '#080808';
-
         ctx.lineWidth = 1;
+        const GRID = 50;
+        const offsetX =
+            -game.camera.x % GRID;
+        const offsetY =
+            -game.camera.y % GRID;
 
-        for(let x = 0; x < canvas.width; x += 50) {
-
+        for(let x = offsetX; x < canvas.width; x += GRID) {
             ctx.beginPath();
-
             ctx.moveTo(x, 0);
-
             ctx.lineTo(x, canvas.height);
-
             ctx.stroke();
         }
 
-        for(let y = 0; y < canvas.height; y += 50) {
-
+        for(let y = offsetY; y < canvas.height; y += GRID) {
             ctx.beginPath();
-
             ctx.moveTo(0, y);
-
             ctx.lineTo(canvas.width, y);
-
             ctx.stroke();
         }
     }
@@ -170,7 +168,7 @@ export function createRenderer(game) {
 
         game.state.enemies?.forEach(e => {
             ctx.save();
-            ctx.translate(e.x, e.y);
+            ctx.translate(e.x - game.camera.x, e.y - game.camera.y);
             ctx.rotate(e.angle - Math.PI / 2);
             if(!game.spritesLoaded) {
                 drawFallbackPlayer(isMe);
@@ -180,8 +178,8 @@ export function createRenderer(game) {
             ctx.restore();
             drawName(e);
             drawHealthBar(
-                e.x,
-                e.y,
+                e.x - game.camera.x,
+                e.y - game.camera.y,
                 e.hp,
                 32
             );
@@ -195,7 +193,7 @@ export function createRenderer(game) {
             const isMe = p.id === game.myId;
 
             ctx.save();
-            ctx.translate(p.x, p.y);
+            ctx.translate(p.x - game.camera.x, p.y - game.camera.y);
             ctx.rotate(p.angle - Math.PI / 2);
             if(!game.spritesLoaded) {
                 drawFallbackPlayer(isMe);
@@ -205,8 +203,8 @@ export function createRenderer(game) {
             ctx.restore();
             drawName(p);
             drawHealthBar(
-                p.x,
-                p.y,
+                p.x - game.camera.x,
+                p.y - game.camera.y,
                 p.hp,
                 32
             );
@@ -221,7 +219,7 @@ export function createRenderer(game) {
 
             ctx.save();
 
-            ctx.translate(b.x, b.y);
+            ctx.translate(b.x - game.camera.x, b.y - game.camera.y);
 
             ctx.rotate(Math.atan2(b.vy, b.vx));
 
@@ -254,7 +252,7 @@ export function createRenderer(game) {
 
             ctx.save();
 
-            ctx.translate(h.x, h.y);
+            ctx.translate(h.x - game.camera.x, h.y - game.camera.y);
 
             ctx.drawImage(
                 game.playerSheet,
@@ -284,7 +282,7 @@ export function createRenderer(game) {
 
                 ctx.save();
 
-                ctx.translate(effect.x, effect.y);
+                ctx.translate(effect.x - game.camera.x, effect.y - game.camera.y);
 
                 ctx.rotate(effect.angle);
 
@@ -337,10 +335,46 @@ export function createRenderer(game) {
         }
     }
 
+    function renderTerrain() {
+        const startX =
+            Math.floor(game.camera.x / TILE_SIZE);
+        const startY =
+            Math.floor(game.camera.y / TILE_SIZE);
+        const endX =
+            startX +
+            Math.ceil(canvas.width / TILE_SIZE) + 2;
+        const endY =
+            startY +
+            Math.ceil(canvas.height / TILE_SIZE) + 2;
+        for(let y = startY; y < endY; y++) {
+            for(let x = startX; x < endX; x++) {
+                const tile = getTile(x, y);
+                ctx.fillStyle =
+                    getTileColor(tile);
+                // Очистка фона для тайла
+                ctx.fillRect(
+                    x * TILE_SIZE - game.camera.x,
+                    y * TILE_SIZE - game.camera.y,
+                    TILE_SIZE,
+                    TILE_SIZE
+                );
+            }
+        }
+    }
+
+    function updateCamera() {
+        const player = game.me();
+        if(!player) return;
+        game.camera.x =
+            player.x - canvas.width / 2;
+        game.camera.y =
+            player.y - canvas.height / 2;
+    }
+
     function render() {
 
         game.animationTime++;
-
+        updateCamera();
         renderBackground();
         renderGrid();
         renderEnemies();
