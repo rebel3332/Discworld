@@ -1,5 +1,5 @@
 // render.js
-import { TILE_SIZE, getTile, getTileColor } from './terrain.js';
+// import { TILE_SIZE, getTile, getTileColor } from './terrain.js';
 
 export function createRenderer(game) {
 
@@ -336,28 +336,38 @@ export function createRenderer(game) {
     }
 
     function renderTerrain() {
-        const startX =
-            Math.floor(game.camera.x / TILE_SIZE);
-        const startY =
-            Math.floor(game.camera.y / TILE_SIZE);
-        const endX =
-            startX +
-            Math.ceil(canvas.width / TILE_SIZE) + 2;
-        const endY =
-            startY +
-            Math.ceil(canvas.height / TILE_SIZE) + 2;
-        for(let y = startY; y < endY; y++) {
-            for(let x = startX; x < endX; x++) {
-                const tile = getTile(x, y);
-                ctx.fillStyle =
-                    getTileColor(tile);
-                // Очистка фона для тайла
-                ctx.fillRect(
-                    x * TILE_SIZE - game.camera.x,
-                    y * TILE_SIZE - game.camera.y,
-                    TILE_SIZE,
-                    TILE_SIZE
-                );
+        const chunks =
+            game.state.chunks || [];
+        for(const chunk of chunks) {
+            for(let y = 0; y < chunk.tiles.length; y++) {
+                for(let x = 0; x < chunk.tiles[y].length; x++) {
+                    const tile =
+                        chunk.tiles[y][x];
+                    const ground =
+                        tile[0];
+                    let color = "#163616";
+                    if(ground === 1)
+                        color = "#333";
+                    if(ground === 2)
+                        color = "#1f4a1f";
+                    if(ground === 3)
+                        color = "#103050";
+                    ctx.fillStyle = color;
+                    const worldX =
+                        (
+                            chunk.cx * 32 + x
+                        ) * 32;
+                    const worldY =
+                        (
+                            chunk.cy * 32 + y
+                        ) * 32;
+                    ctx.fillRect(
+                        worldX - game.camera.x,
+                        worldY - game.camera.y,
+                        32,
+                        32
+                    );
+                }
             }
         }
     }
@@ -365,10 +375,23 @@ export function createRenderer(game) {
     function updateCamera() {
         const player = game.me();
         if(!player) return;
-        game.camera.x =
+        // game.camera.x =
+        //     player.x - canvas.width / 2;
+        // game.camera.y =
+        //     player.y - canvas.height / 2;
+
+        // Плавное движение камеры
+        const targetX =
             player.x - canvas.width / 2;
-        game.camera.y =
+
+        const targetY =
             player.y - canvas.height / 2;
+
+        game.camera.x +=
+            (targetX - game.camera.x) * 0.01;
+
+        game.camera.y +=
+            (targetY - game.camera.y) * 0.01;
     }
 
     function render() {
@@ -376,7 +399,7 @@ export function createRenderer(game) {
         game.animationTime++;
         updateCamera();
         renderBackground();
-        renderGrid();
+        // renderGrid();
         renderEnemies();
         renderPlayers();
         renderBullets();

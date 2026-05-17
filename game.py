@@ -4,6 +4,8 @@ import random
 from dataclasses import dataclass, field
 from typing import List, Dict
 
+from world import World
+
 @dataclass
 class Entity:
     id: int
@@ -88,6 +90,8 @@ class Game:
         self.fast_mode = False
         self.simulation_speed = 1
 
+        self.world = World(world_width=self.W, world_height=self.H)
+
     def set_fast_mode(self, enabled: bool):
         self.fast_mode = enabled
         if enabled:
@@ -126,12 +130,23 @@ class Game:
         if dx != 0 or dy != 0:
             length = math.hypot(dx, dy)
             speed = 4.0
-            p.x += (dx / length) * speed * self.dt * 60
-            p.y += (dy / length) * speed * self.dt * 60
+            # p.x += (dx / length) * speed * self.dt * 60
+            # p.y += (dy / length) * speed * self.dt * 60
+            # # Ограничение полем
+            # p.x = max(p.radius, min(self.W - p.radius, p.x))
+            # p.y = max(p.radius, min(self.H - p.radius, p.y))
+
+            new_x = p.x + (dx / length) * speed * self.dt * 60
+            new_y = p.y + (dy / length) * speed * self.dt * 60
             # Ограничение полем
-            p.x = max(p.radius, min(self.W - p.radius, p.x))
-            p.y = max(p.radius, min(self.H - p.radius, p.y))
-            
+            new_x = max(p.radius, min(self.W - p.radius, new_x))
+            new_y = max(p.radius, min(self.H - p.radius, new_y))
+
+            # Проверка коллизий с миром (стенами)
+            if self.world.isWalkable(new_x, p.y):
+                p.x = new_x
+            if self.world.isWalkable(p.x, new_y):
+                p.y = new_y
         # 🔒 Выстрел
         if shoot and p.shoot_cooldown <= 0:
             bullet = Bullet(
@@ -379,7 +394,22 @@ class Game:
 
     
     def get_snapshot(self) -> dict:
+        # Получаем игрока (для определения центра мира)
+        player = next(
+            iter(self.players.values()),
+            None
+        )
+        # Получаем чанки вокруг игрока (если он есть)
+        chunks = []
+        if player:
+            chunks = self.world.get_chunks_around(
+                player.x,
+                player.y,
+                radius=1
+            )
+
         return {
+            "chunks": chunks,
             "players": [
                 {
                     "id": p.id,
@@ -394,7 +424,7 @@ class Game:
                     "angle": p.angle,
                     "enemy_hits": p.enemy_hits,
                     "player_hits": p.player_hits,
-                    "survival_ticks": p.survival_ticks
+                    "survival_ticks": p.survival_ticks,
                 }
                 for p in self.players.values()
             ],

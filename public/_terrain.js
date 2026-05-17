@@ -1,6 +1,8 @@
 // terrain.js
 
 export const TILE_SIZE = 32;
+export const WORLD_WIDTH = 4000;
+export const WORLD_HEIGHT = 4000;
 
 export function getTile(tx, ty) {
 
