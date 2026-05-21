@@ -7,6 +7,14 @@ export function createRenderer(game) {
     const ctx = game.ctx;
     const canvas = game.canvas;
 
+    const TILE_SPRITES = {
+
+        0: [0, 0, 321, 329],      // grass
+        1: [334, 0, 321, 329],    // stone
+        2: [661, 0, 321, 329],    // toxic
+        3: [1006, 20, 221, 229],    // water
+    };
+
     function drawFallbackPlayer(isMe) {
 
         ctx.fillStyle = isMe ? '#0f0' : '#a0f';
@@ -365,9 +373,31 @@ export function createRenderer(game) {
                         (
                             chunk.cy * CHUNK_SIZE + y
                         ) * TILE_SIZE;
-                    ctx.fillRect(
-                        worldX - game.camera.x,
-                        worldY - game.camera.y,
+                    // Нарисовать тайл на экране с учетом камеры
+                    // Прямоугольник одного цвета
+                    // ctx.fillRect(
+                    //     worldX - game.camera.x,
+                    //     worldY - game.camera.y,
+                    //     TILE_SIZE,
+                    //     TILE_SIZE
+                    // );
+
+                    // Тайл из тайлсета
+                    const sprite =
+                        TILE_SPRITES[ground];
+
+                    ctx.drawImage(
+                        game.tileSheet,
+
+                        sprite[0],
+                        sprite[1],
+                        sprite[2],
+                        sprite[3],
+
+                        // worldX - game.camera.x,
+                        // worldY - game.camera.y,
+                        Math.floor(worldX - game.camera.x),
+                        Math.floor(worldY - game.camera.y),
                         TILE_SIZE,
                         TILE_SIZE
                     );

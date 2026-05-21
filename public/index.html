@@ -19,13 +19,16 @@
   
     <script type="module">
         // import { renderGame } from './js/render.js';
-        import { createRenderer } from '/static/render.js';
+        import { createRenderer } from '/static/js/render.js';
 
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
         const playerSheet = new Image();
         playerSheet.src = '/static/assets/player_sheet.png';
+
+        const tileSheet = new Image();
+        tileSheet.src = '/static/assets/tileset.png';
 
         const statusEl = document.getElementById('status');
 
@@ -108,6 +111,7 @@
             spritesLoaded,
             playerSheet,
             SPRITES,
+            tileSheet, // Спрайты для тайлов
             EFFECTS,
             localEffects,
             spectatorMode,

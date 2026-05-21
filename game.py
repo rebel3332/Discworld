@@ -36,6 +36,7 @@ class Player(Entity):
 
 @dataclass
 class Enemy(Entity):
+    name: str = "Hunter"
     hp: int = 3
     speed: float = 3.5
     model: str = "simple" # для будущих типов врагов
@@ -119,6 +120,61 @@ class Game:
     def remove_dead_bot(self, cid):
         self.remove_player(cid)
 
+    def can_move_to(self, x, y, radius):
+        """Проверяет, можно ли поместиться в точку (x, y) с данным радиусом, не упираясь в стены"""
+        return (
+            self.world.isWalkable(x - radius, y - radius) and
+            self.world.isWalkable(x + radius, y - radius) and
+            self.world.isWalkable(x - radius, y + radius) and
+            self.world.isWalkable(x + radius, y + radius)
+        )
+    
+    def resolve_collision(self, entity):
+        """Если сущность застряла в стене, пытаемся её вытащить в ближайшую свободную точку"""
+        if self.can_move_to(
+            entity.x,
+            entity.y,
+            entity.radius
+        ):
+            return
+
+        offsets = [
+
+            (0, -1),
+            (0, 1),
+            (-1, 0),
+            (1, 0),
+
+            (-1, -1),
+            (1, -1),
+            (-1, 1),
+            (1, 1),
+        ]
+
+        max_push_distance = 32
+
+        for distance in range(
+            1,
+            max_push_distance + 1
+        ):
+
+            for ox, oy in offsets:
+
+                test_x = entity.x + ox * distance
+
+                test_y = entity.y + oy * distance
+
+                if self.can_move_to(
+                    test_x,
+                    test_y,
+                    entity.radius
+                ):
+
+                    entity.x = test_x
+                    entity.y = test_y
+
+                    return
+
     def process_inputs(self, cid: int, dx: float, dy: float, shoot: bool, angle: float):
         if cid not in self.players: return
         p = self.players[cid]
@@ -142,11 +198,14 @@ class Game:
             new_x = max(p.radius, min(self.W - p.radius, new_x))
             new_y = max(p.radius, min(self.H - p.radius, new_y))
 
-            # Проверка коллизий с миром (стенами)
-            if self.world.isWalkable(new_x, p.y):
+            # Проверка коллизий с миром (с учетом радиуса)
+            if self.can_move_to(new_x, p.y, p.radius):
                 p.x = new_x
-            if self.world.isWalkable(p.x, new_y):
+
+            if self.can_move_to(p.x, new_y, p.radius):
                 p.y = new_y
+
+            self.resolve_collision(p)
         # 🔒 Выстрел
         if shoot and p.shoot_cooldown <= 0:
             bullet = Bullet(
@@ -313,13 +372,41 @@ class Game:
                     enemy_hp = 3
             
                 side = random.choice(['top','bottom','left','right'])
-                if side == 'top': x, y = random.uniform(0, self.W), -30
-                elif side == 'bottom': x, y = random.uniform(0, self.W), self.H + 30
-                elif side == 'left': x, y = -30, random.uniform(0, self.H)
-                else: x, y = self.W + 30, random.uniform(0, self.H)
-                # self.enemies.append(Enemy(id=self.next_id, x=x, y=y, radius=14))
+                # спавн за пределами карты
+                # if side == 'top': x, y = random.uniform(0, self.W), -30
+                # elif side == 'bottom': x, y = random.uniform(0, self.W), self.H + 30
+                # elif side == 'left': x, y = -30, random.uniform(0, self.H)
+                # else: x, y = self.W + 30, random.uniform(0, self.H)
 
-                self.enemies.append(Enemy(id=self.next_id, x=x, y=y, radius=14, hp=enemy_hp, model=enemy_model))
+                # спавн в случайной точке карты (но не внутри стен)
+                spawned = False
+                while not spawned:
+                    x = random.uniform(50, self.W - 50)
+                    y = random.uniform(50, self.H - 50)
+                    # проверяем, что точка свободна от стен с учетом радиуса врага  
+                    dummy_enemy = Enemy(
+                        id=0,
+                        x=x,
+                        y=y,
+                        radius=14
+                    )
+                    #
+                    if self.can_move_to(x, y, dummy_enemy.radius):
+                        self.enemies.append(
+                            Enemy(
+                                id=self.next_id,
+                                x=x,
+                                y=y,
+                                radius=14,
+                                hp=enemy_hp,
+                                model=enemy_model
+                            )
+                        )
+                        self.next_id += 1
+                        spawned = True
+
+                # self.enemies.append(Enemy(id=self.next_id, x=x, y=y, radius=14))
+                # self.enemies.append(Enemy(id=self.next_id, x=x, y=y, radius=14, hp=enemy_hp, model=enemy_model))
                 self.next_id += 1
 
             # 2. Логика врагов
@@ -346,9 +433,23 @@ class Game:
                         else:   
                             e.isMoving = False
 
+                        # if dist > 0:
+                        #     e.x += (dx / dist) * e.speed * self.dt * 60
+                        #     e.y += (dy / dist) * e.speed * self.dt * 60
+                        #     e.angle = math.atan2(dy, dx)
+
                         if dist > 0:
-                            e.x += (dx / dist) * e.speed * self.dt * 60
-                            e.y += (dy / dist) * e.speed * self.dt * 60
+                            move_x = (dx / dist) * e.speed * self.dt * 60
+                            move_y = (dy / dist) * e.speed * self.dt * 60
+
+                            new_x = e.x + move_x
+                            new_y = e.y + move_y
+
+                            if self.can_move_to(new_x, e.y, e.radius):
+                                e.x = new_x
+                            if self.can_move_to(e.x, new_y, e.radius):
+                                e.y = new_y
+                            self.resolve_collision(e)
                             e.angle = math.atan2(dy, dx)
 
             # 3. Пули
@@ -435,6 +536,7 @@ class Game:
             "enemies": [
                 {
                     "model": e.model,
+                    "name": e.name,
                     "id": e.id, 
                     "x": e.x, 
                     "y": e.y, 
