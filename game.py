@@ -138,7 +138,7 @@ class Game:
 
             new_x = p.x + (dx / length) * speed * self.dt * 60
             new_y = p.y + (dy / length) * speed * self.dt * 60
-            # Ограничение полем
+            # Ограничение полем (границами мира)
             new_x = max(p.radius, min(self.W - p.radius, new_x))
             new_y = max(p.radius, min(self.H - p.radius, new_y))
 
@@ -409,6 +409,10 @@ class Game:
             )
 
         return {
+            "world": {
+                "chunk_size": self.world.CHUNK_SIZE,
+                "tile_size": self.world.TILE_SIZE,
+            },
             "chunks": chunks,
             "players": [
                 {

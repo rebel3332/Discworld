@@ -21,8 +21,8 @@ class World:
         self.TILE_STONE = 1
         self.TILE_TOXIC = 2
         self.TILE_WATER = 3
-        self.CHUNK_SIZE = 32
-        self.TILE_SIZE = 32
+        self.CHUNK_SIZE = 30 # в тайлах (например, 16x16)
+        self.TILE_SIZE = 32 # в пикселях
 
     # def chunk_exists(self, cx, cy):
     #     """ Проверяет не выходит ли чанк за границы мира<br>
@@ -62,8 +62,8 @@ class World:
         for y in range(self.CHUNK_SIZE):
             row = []
             for x in range(self.CHUNK_SIZE):
-                world_x = cx * self.CHUNK_SIZE + x
-                world_y = cy * self.CHUNK_SIZE + y
+                world_x = self.TILE_SIZE * (cx * self.CHUNK_SIZE + x)
+                world_y = self.TILE_SIZE * (cy * self.CHUNK_SIZE + y)
 
                 if (
                     world_x < 0 or
@@ -130,9 +130,10 @@ class World:
 
     def get_chunks_around(self, x, y, radius=1):
         """ Получить чанки вокруг координат (x, y) в радиусе radius (в чанках) """
+        # Получаем координаты центрального тайла
         tile_x = int(x // self.TILE_SIZE)
         tile_y = int(y // self.TILE_SIZE)
-
+        # Получаем координаты центрального чанка   
         center_cx = tile_x // self.CHUNK_SIZE
         center_cy = tile_y // self.CHUNK_SIZE
 

@@ -353,19 +353,23 @@ export function createRenderer(game) {
                     if(ground === 3)
                         color = "#103050";
                     ctx.fillStyle = color;
+                    const CHUNK_SIZE =
+                        game.state.world?.chunk_size || 32;
+                    const TILE_SIZE =
+                        game.state.world?.tile_size || 32;
                     const worldX =
                         (
-                            chunk.cx * 32 + x
-                        ) * 32;
+                            chunk.cx * CHUNK_SIZE + x
+                        ) * TILE_SIZE;
                     const worldY =
                         (
-                            chunk.cy * 32 + y
-                        ) * 32;
+                            chunk.cy * CHUNK_SIZE + y
+                        ) * TILE_SIZE;
                     ctx.fillRect(
                         worldX - game.camera.x,
                         worldY - game.camera.y,
-                        32,
-                        32
+                        TILE_SIZE,
+                        TILE_SIZE
                     );
                 }
             }
