@@ -583,19 +583,113 @@ class Game:
                         #     e.y += (dy / dist) * e.speed * self.dt * 60
                         #     e.angle = math.atan2(dy, dx)
 
+                        # Простое движение с проверкой коллизий (без застревания в стенах)
+                        # if dist > 0:
+                        #     move_x = (dx / dist) * e.speed * self.dt * 60
+                        #     move_y = (dy / dist) * e.speed * self.dt * 60
+
+                        #     new_x = e.x + move_x
+                        #     new_y = e.y + move_y
+
+                        #     if self.can_move_to(new_x, e.y, e.radius):
+                        #         e.x = new_x
+                        #     if self.can_move_to(e.x, new_y, e.radius):
+                        #         e.y = new_y
+                        #     self.resolve_collision(e)
+                        #     e.angle = math.atan2(dy, dx)
+
                         if dist > 0:
-                            move_x = (dx / dist) * e.speed * self.dt * 60
-                            move_y = (dy / dist) * e.speed * self.dt * 60
+                            # =====================================
+                            # Базовое направление к игроку
+                            # =====================================
+
+                            dir_x = dx / dist
+                            dir_y = dy / dist
+
+                            # =====================================
+                            # Проверяем стену впереди
+                            # =====================================
+
+                            look_ahead = 24
+
+                            front_x =  e.x + dir_x * look_ahead
+
+                            front_y = e.y + dir_y * look_ahead
+
+                            blocked = not self.can_move_to(
+                                    front_x,
+                                    front_y,
+                                    e.radius
+                                )
+
+                            # =====================================
+                            # Obstacle avoidance
+                            # =====================================
+                            if blocked:
+                                # Левый вектор
+                                left_x = -dir_y
+                                left_y = dir_x
+                                # Правый вектор
+                                right_x = dir_y
+                                right_y = -dir_x
+                                left_free = self.can_move_to(
+                                        e.x + left_x * look_ahead,
+                                        e.y + left_y * look_ahead,
+                                        e.radius
+                                    )
+                                right_free = self.can_move_to(
+                                        e.x + right_x * look_ahead,
+                                        e.y + right_y * look_ahead,
+                                        e.radius
+                                    )
+                                # Пытаемся обходить препятствие
+                                if left_free:
+                                    dir_x += left_x * 0.8
+                                    dir_y += left_y * 0.8
+                                elif right_free:
+                                    dir_x += right_x * 0.8
+                                    dir_y += right_y * 0.8
+
+                            # =====================================
+                            # Нормализация
+                            # =====================================
+                            length = math.hypot(dir_x, dir_y)
+                            if length > 0:
+                                dir_x /= length
+                                dir_y /= length
+
+                            # =====================================
+                            # Финальное движение
+                            # =====================================
+                            move_x = dir_x * e.speed * self.dt * 60
+
+                            move_y = dir_y * e.speed * self.dt * 60
 
                             new_x = e.x + move_x
                             new_y = e.y + move_y
+                            
+                            moved = False
 
-                            if self.can_move_to(new_x, e.y, e.radius):
+                            if self.can_move_to(
+                                new_x,
+                                e.y,
+                                e.radius
+                            ):
                                 e.x = new_x
-                            if self.can_move_to(e.x, new_y, e.radius):
+                                moved = True
+
+                            if self.can_move_to(
+                                e.x,
+                                new_y,
+                                e.radius
+                            ):
                                 e.y = new_y
+                                moved = True
+
+                            # Push-out resolve
                             self.resolve_collision(e)
-                            e.angle = math.atan2(dy, dx)
+
+                            e.angle = math.atan2(dir_y, dir_x)
 
             # 3. Пули
             for b in self.bullets:

@@ -285,6 +285,7 @@ class GeneticBot:
                     done = await self.process_state(ws, data)
 
                     if done:
+                        await ws.close()
                         break
 
                 except Exception as e:
