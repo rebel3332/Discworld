@@ -9,7 +9,7 @@ export function createRenderer(game) {
 
     const TILE_SPRITES = {
 
-        0: [0, 0, 321, 329],      // grass
+        0: [8, 9, 300, 236],      // grass
         1: [334, 0, 321, 329],    // stone
         2: [661, 0, 321, 329],    // toxic
         3: [1006, 20, 221, 229],    // water

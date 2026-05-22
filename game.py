@@ -343,6 +343,41 @@ class Game:
         ))
         self.next_effect_id += 1
 
+    def is_visible_to_any_player(
+        self,
+        x,
+        y,
+        margin=200
+    ):
+        """проверяем, видна ли точка хотя бы одному игроку """
+        for p in self.players.values():
+            screen_w = self.W
+            screen_h = self.H
+            if (
+                abs(x - p.x) < screen_w / 2 + margin
+                and
+                abs(y - p.y) < screen_h / 2 + margin
+            ):
+                return True
+        return False
+    
+    def is_far_from_players(
+        self,
+        x,
+        y,
+        min_distance=500
+    ):
+        """проверяем, что точка находится на достаточном расстоянии от всех игроков (для спавна врагов)"""
+        for p in self.players.values():
+
+            dist = math.hypot(
+                p.x - x,
+                p.y - y
+            )
+            if dist < min_distance:
+                return False
+        return True
+
     def world_tick(self) -> bool:
         # ❗ если никого нет в мире — полностью стопаем логику
         if (
@@ -378,36 +413,146 @@ class Game:
                 # elif side == 'left': x, y = -30, random.uniform(0, self.H)
                 # else: x, y = self.W + 30, random.uniform(0, self.H)
 
-                # спавн в случайной точке карты (но не внутри стен)
+                # Спавн врагов
+                # spawned = False
+                # # Спавн врагов за границей видимости игроков
+                # attempts = 0
+                # max_attempts = 50
+                # while not spawned and attempts < max_attempts:
+                #     attempts += 1
+
+                #     x = random.uniform(50, self.W - 50)
+                #     y = random.uniform(50, self.H - 50)
+                #     # проверяем, что точка свободна от стен с учетом радиуса врага  
+                #     dummy_enemy = Enemy(
+                #         id=0,
+                #         x=x,
+                #         y=y,
+                #         radius=14
+                #     )
+
+                #     visible = self.is_visible_to_any_player(x, y)
+                #     print(
+                #         "spawn check",
+                #         visible,
+                #         x,
+                #         y
+                #     )
+
+                #     if (
+                #         self.can_move_to(x, y, dummy_enemy.radius)
+                #         and
+                #         self.is_far_from_players(x, y)
+                #     ):
+                #         self.enemies.append(
+                #             Enemy(
+                #                 id=self.next_id,
+                #                 x=x,
+                #                 y=y,
+                #                 radius=14,
+                #                 hp=enemy_hp,
+                #                 model=enemy_model
+                #             )
+                #         )
+                #         self.next_id += 1
+                #         print("Silently spawned enemy at")
+                #         spawned = True
+                # # спавн в случайной точке карты (но не внутри стен)
+                # while not spawned:
+                #     x = random.uniform(50, self.W - 50)
+                #     y = random.uniform(50, self.H - 50)
+                #     # проверяем, что точка свободна от стен с учетом радиуса врага  
+                #     dummy_enemy = Enemy(
+                #         id=0,
+                #         x=x,
+                #         y=y,
+                #         radius=14
+                #     )
+                #     #
+                #     if self.can_move_to(x, y, dummy_enemy.radius):
+                #         self.enemies.append(
+                #             Enemy(
+                #                 id=self.next_id,
+                #                 x=x,
+                #                 y=y,
+                #                 radius=14,
+                #                 hp=enemy_hp,
+                #                 model=enemy_model
+                #             )
+                #         )
+                #         self.next_id += 1
+                #         print("Randomly spawned enemy at")
+                #         spawned = True
+
+                # сначала пытаемся заспавнить врага в идеальной точке (невидимо для игроков), 
+                # если не получается — спавним в лучшей из найденных точек, 
+                # если и её нет — спавним в рандомной точке карты (но не внутри стен)
                 spawned = False
-                while not spawned:
+                best_spawn = None
+                best_distance = -1
+
+                max_attempts = 50
+
+                for _ in range(max_attempts):
                     x = random.uniform(50, self.W - 50)
                     y = random.uniform(50, self.H - 50)
-                    # проверяем, что точка свободна от стен с учетом радиуса врага  
-                    dummy_enemy = Enemy(
-                        id=0,
-                        x=x,
-                        y=y,
-                        radius=14
-                    )
-                    #
-                    if self.can_move_to(x, y, dummy_enemy.radius):
+                    radius = 14
+                    if not self.can_move_to(x, y, radius):
+                        continue
+                    nearest_distance = float("inf")
+                    visible = False
+                    for p in self.players.values():
+                        dist = math.hypot(
+                            p.x - x,
+                            p.y - y
+                        )
+                        nearest_distance = min(
+                            nearest_distance,
+                            dist
+                        )
+                        if self.is_visible_to_any_player(x, y):
+                            visible = True
+
+                    # идеальный спавн
+                    if not visible:
                         self.enemies.append(
                             Enemy(
                                 id=self.next_id,
                                 x=x,
                                 y=y,
-                                radius=14,
+                                radius=radius,
                                 hp=enemy_hp,
                                 model=enemy_model
                             )
                         )
                         self.next_id += 1
+                        print("Silently spawned enemy")
                         spawned = True
+                        break
 
-                # self.enemies.append(Enemy(id=self.next_id, x=x, y=y, radius=14))
-                # self.enemies.append(Enemy(id=self.next_id, x=x, y=y, radius=14, hp=enemy_hp, model=enemy_model))
-                self.next_id += 1
+                    # запоминаем лучший плохой вариант
+                    if nearest_distance > best_distance:
+                        best_distance = nearest_distance
+                        best_spawn = (x, y)
+
+                # если не получилось заспавнить врага в идеальной точке, 
+                # спавним в лучшей из найденных точек
+                if not spawned and best_spawn:
+                    x, y = best_spawn
+                    self.enemies.append(
+                        Enemy(
+                            id=self.next_id,
+                            x=x,
+                            y=y,
+                            radius=14,
+                            hp=enemy_hp,
+                            model=enemy_model
+                        )
+                    )
+                    self.next_id += 1
+                    print(
+                        f"Fallback spawn at distance {best_distance:.1f}"
+                    )
 
             # 2. Логика врагов
             if self.players:
