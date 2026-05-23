@@ -54,10 +54,10 @@ export function createRenderer(game) {
             sy,
             sw,
             sh,
-            -16,
-            -16,
-            32,
-            32
+            -p.radius,
+            -p.radius,
+            p.radius * 2,
+            p.radius * 2
         );
     }
 

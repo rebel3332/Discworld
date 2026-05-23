@@ -6,6 +6,33 @@ from typing import List, Dict
 
 from world import World
 
+ENEMY_TYPES = {
+
+    "boss": {
+        "speed": 1.,
+        "hp": 40,
+        "damage": 8,
+        "radius": 24,
+        "color": "#6f6",
+    },
+
+    "hunter": {
+        "speed": 1.2,
+        "hp": 4,
+        "damage": 8,
+        "radius": 14,
+        "color": "#6f6",
+    },
+
+    "zombie": {
+        "speed": 0.5,
+        "hp": 1,
+        "damage": 20,
+        "radius": 14,
+        "color": "#9c6",
+    },
+}
+
 @dataclass
 class Entity:
     id: int
@@ -39,8 +66,26 @@ class Enemy(Entity):
     name: str = "Hunter"
     hp: int = 3
     speed: float = 3.5
-    model: str = "simple" # для будущих типов врагов
     isMoving: bool = False
+    enemy_type: str = "hunter"
+
+    def __init__(self, enemy_type="hunter", **kwds):
+        params = ENEMY_TYPES.get(enemy_type, ENEMY_TYPES["hunter"]) # Защита от неизвестного типа
+
+        self.name = enemy_type.capitalize()
+        self.hp = params.get("hp", 1)
+        self.speed = params.get("speed", 1.0)
+        self.enemy_type = enemy_type
+
+        # Если парамтры переданы явно, используем их, иначе - из словаря
+        kwds.setdefault(
+            "radius",
+            params.get("radius", 14)
+        )
+
+        super().__init__(**kwds)
+        print(f"Spawned enemy {self.name} with HP {self.hp} and speed {self.speed}, radius {self.radius}")
+
 
 @dataclass
 class Bullet(Entity):
@@ -106,7 +151,7 @@ class Game:
             id=self.next_id,
             x=random.randint(100, self.W - 100),
             y=random.randint(100, self.H - 100),
-            radius=12,
+            radius=14,
             name=name or f"Player{self.player_counter}"
         )
         self.next_id += 1
@@ -120,14 +165,28 @@ class Game:
     def remove_dead_bot(self, cid):
         self.remove_player(cid)
 
+    # def can_move_to(self, x, y, radius):
+    #     """Проверяет, можно ли поместиться в точку (x, y) с данным радиусом, не упираясь в стены<br>     (проверяем 4 угла)"""
+    #     return (
+    #         self.world.isWalkable(x - radius, y - radius) and
+    #         self.world.isWalkable(x + radius, y - radius) and
+    #         self.world.isWalkable(x - radius, y + radius) and
+    #         self.world.isWalkable(x + radius, y + radius)
+    #     )
+
     def can_move_to(self, x, y, radius):
-        """Проверяет, можно ли поместиться в точку (x, y) с данным радиусом, не упираясь в стены"""
-        return (
-            self.world.isWalkable(x - radius, y - radius) and
-            self.world.isWalkable(x + radius, y - radius) and
-            self.world.isWalkable(x - radius, y + radius) and
-            self.world.isWalkable(x + radius, y + radius)
-        )
+        """Проверяет, можно ли поместиться в точку (x, y) с данным радиусом, не упираясь в стены<br>     (проверяем все клетки, пересекаемые окружностью)"""
+        left = int((x - radius) // self.world.TILE_SIZE)
+        right = int((x + radius) // self.world.TILE_SIZE)
+        top = int((y - radius) // self.world.TILE_SIZE)
+        bottom = int((y + radius) // self.world.TILE_SIZE)
+        for ty in range(top, bottom + 1):
+            for tx in range(left, right + 1):
+                wx = tx * self.world.TILE_SIZE + self.world.TILE_SIZE / 2
+                wy = ty * self.world.TILE_SIZE + self.world.TILE_SIZE / 2
+                if not self.world.isWalkable(wx, wy):
+                    return False
+        return True
     
     def resolve_collision(self, entity):
         """Если сущность застряла в стене, пытаемся её вытащить в ближайшую свободную точку"""
@@ -399,15 +458,20 @@ class Game:
             if self.spawn_timer >= self.spawn_interval:
                 self.spawn_timer = 0
                 self.enemy_count += 1
-                if (self.enemy_count % 10 == 0):
-                    enemy_model = "simple_boss"
-                    enemy_hp = 30
-                else:
-                    enemy_model = "simple" # вид врага
-                    enemy_hp = 3
-            
-                side = random.choice(['top','bottom','left','right'])
+                # if (self.enemy_count % 10 == 0):
+                #     enemy_model = "simple_boss"
+                #     enemy_hp = 30
+                # else:
+                #     enemy_model = "simple" # вид врага
+                #     enemy_hp = 3
+
+                enemy_type = random.choices(
+                        ["boss", "hunter", "zombie"],
+                        weights=[5, 20, 75]
+                    )[0]
+
                 # спавн за пределами карты
+                # side = random.choice(['top','bottom','left','right'])
                 # if side == 'top': x, y = random.uniform(0, self.W), -30
                 # elif side == 'bottom': x, y = random.uniform(0, self.W), self.H + 30
                 # elif side == 'left': x, y = -30, random.uniform(0, self.H)
@@ -521,8 +585,7 @@ class Game:
                                 x=x,
                                 y=y,
                                 radius=radius,
-                                hp=enemy_hp,
-                                model=enemy_model
+                                enemy_type=enemy_type,
                             )
                         )
                         self.next_id += 1
@@ -544,9 +607,7 @@ class Game:
                             id=self.next_id,
                             x=x,
                             y=y,
-                            radius=14,
-                            hp=enemy_hp,
-                            model=enemy_model
+                            enemy_type=enemy_type,
                         )
                     )
                     self.next_id += 1
@@ -667,7 +728,7 @@ class Game:
 
                             new_x = e.x + move_x
                             new_y = e.y + move_y
-                            
+
                             moved = False
 
                             if self.can_move_to(
@@ -774,7 +835,6 @@ class Game:
             ],
             "enemies": [
                 {
-                    "model": e.model,
                     "name": e.name,
                     "id": e.id, 
                     "x": e.x, 
@@ -782,6 +842,7 @@ class Game:
                     "angle": e.angle,
                     "radius": e.radius,
                     "hp": e.hp,
+                    "enemy_type": e.enemy_type,
                     "isMoving": e.isMoving,
                     "flash": e.hp < 3}
                 for e in self.enemies
