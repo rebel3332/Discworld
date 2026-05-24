@@ -119,11 +119,18 @@ async def game_loop():
             # SNAPSHOT
             # =====================================================
 
+            snapshot_cache = {}
             if realtime_mode:
-
-                snapshot = json.dumps(
-                    game.get_snapshot()
-                )
+                # snapshot = json.dumps(
+                #     game.get_snapshot()
+                # )
+                for cid in active_connections:
+                    player = game.players.get(cid)
+                    if not player:
+                        continue
+                    snapshot_cache[cid] = json.dumps(
+                        game.get_snapshot_for(player)
+                    )
 
             dead_clients = []
 
@@ -131,19 +138,24 @@ async def game_loop():
             # PLAYERS
             # =================================================
 
-            for cid, ws in list(active_connections.items()):
+            for sid, ws in list(active_connections.items()):
 
                 try:
 
-                    await ws.send_text(snapshot)
+                    # await ws.send_text(snapshot)
+                    await asyncio.wait_for(
+                        # ws.send_text(snapshot),
+                        ws.send_text(snapshot_cache.get(sid, "{}")),
+                        timeout=0.01
+                    )
 
                 except Exception as e:
 
                     logger.warning(
-                        f"❌ Failed to send to {cid}: {e}"
+                        f"❌ Failed to send to {sid}: {e}"
                     )
 
-                    dead_clients.append(cid)
+                    dead_clients.append(sid)
 
             # =================================================
             # SPECTATORS
@@ -153,7 +165,28 @@ async def game_loop():
 
                 try:
 
-                    await ws.send_text(snapshot)
+                    # await ws.send_text(snapshot)
+                    # await asyncio.wait_for(
+                    #     # ws.send_text(snapshot),
+                    #     ws.send_text(snapshot_cache.get(sid, "{}")),
+                    #     timeout=0.01
+                    # )
+
+                    # Для зрителей всегда отправляем полный снимок от первого игрока (или пустой, если нет игроков)
+                    target_player = next(
+                        iter(game.players.values()),
+                        None
+                    )
+
+                    snapshot = json.dumps(
+                        game.get_snapshot_for(target_player)
+                    )
+
+                    await asyncio.wait_for(
+                        ws.send_text(snapshot),
+                        timeout=0.01
+                    )
+
 
                 except Exception:
 
@@ -166,16 +199,16 @@ async def game_loop():
             # CLEANUP
             # =================================================
 
-            for cid in dead_clients:
+            for sid in dead_clients:
 
-                active_connections.pop(cid, None)
+                active_connections.pop(sid, None)
 
-                client_inputs.pop(cid, None)
+                client_inputs.pop(sid, None)
 
-                game.remove_player(cid)
+                game.remove_player(sid)
 
                 logger.info(
-                    f"🔌 Cleaned up disconnected client {cid}"
+                    f"🔌 Cleaned up disconnected client {sid} (total players: {len(active_connections)})"
                 )
 
             # Задержка для реального времени или ускорение для тренировки

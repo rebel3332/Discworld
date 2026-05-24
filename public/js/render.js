@@ -406,24 +406,43 @@ export function createRenderer(game) {
         }
     }
 
+    // function updateCamera() {
+    //     const player = game.me();
+    //     if(!player) return;
+    //     // game.camera.x =
+    //     //     player.x - canvas.width / 2;
+    //     // game.camera.y =
+    //     //     player.y - canvas.height / 2;
+
+    //     // Плавное движение камеры
+    //     const targetX =
+    //         player.x - canvas.width / 2;
+
+    //     const targetY =
+    //         player.y - canvas.height / 2;
+
+    //     game.camera.x +=
+    //         (targetX - game.camera.x) * 0.01;
+
+    //     game.camera.y +=
+    //         (targetY - game.camera.y) * 0.01;
+    // }
     function updateCamera() {
-        const player = game.me();
-        if(!player) return;
-        // game.camera.x =
-        //     player.x - canvas.width / 2;
-        // game.camera.y =
-        //     player.y - canvas.height / 2;
-
-        // Плавное движение камеры
+        let target = null;
+        // обычный игрок
+        if(!game.spectatorMode) {
+            target = game.me();
+        } else {
+            // spectator смотрит на первого игрока
+            target = game.state.players?.[0];
+        }
+        if(!target) return;
         const targetX =
-            player.x - canvas.width / 2;
-
+            target.x - canvas.width / 2;
         const targetY =
-            player.y - canvas.height / 2;
-
+            target.y - canvas.height / 2;
         game.camera.x +=
             (targetX - game.camera.x) * 0.01;
-
         game.camera.y +=
             (targetY - game.camera.y) * 0.01;
     }

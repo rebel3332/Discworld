@@ -865,3 +865,77 @@ class Game:
                 for ex in self.explosions[-20:]   # ⬅️ ограничение количества взрывов в снимке (для оптимизации)
             ],
         }
+    
+    def get_snapshot_for(self, player=None) -> dict:
+
+        # spectator mode
+        if player is None:
+
+            player = next(
+                iter(self.players.values()),
+                None
+            )
+
+        chunks = []
+
+        if player:
+
+            chunks = self.world.get_chunks_around(
+                player.x,
+                player.y,
+                radius=1
+            )
+
+        return {
+
+            "world": {
+                "chunk_size": self.world.CHUNK_SIZE,
+                "tile_size": self.world.TILE_SIZE,
+            },
+
+            "chunks": chunks,
+
+            "players": [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "x": p.x,
+                    "y": p.y,
+                    "vx": p.vx,
+                    "vy": p.vy,
+                    "hp": p.hp,
+                    "score": p.score,
+                    "radius": p.radius,
+                    "angle": p.angle,
+                    "is_bot": p.is_bot,
+                }
+                for p in self.players.values()
+            ],
+
+            "enemies": [
+                {
+                    "name": e.name,
+                    "id": e.id,
+                    "x": e.x,
+                    "y": e.y,
+                    "angle": e.angle,
+                    "radius": e.radius,
+                    "hp": e.hp,
+                    "enemy_type": e.enemy_type,
+                    "isMoving": e.isMoving,
+                }
+                for e in self.enemies
+            ],
+
+            "bullets": [
+                {
+                    "id": b.id,
+                    "x": b.x,
+                    "y": b.y,
+                    "vx": b.vx,
+                    "vy": b.vy,
+                    "radius": b.radius
+                }
+                for b in self.bullets
+            ],
+        }
