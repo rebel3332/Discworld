@@ -7,13 +7,13 @@ export function createRenderer(game) {
     const ctx = game.ctx;
     const canvas = game.canvas;
 
-    const TILE_SPRITES = {
+    // const TILE_SPRITES = {
 
-        0: [8, 9, 300, 236],      // grass
-        1: [334, 0, 321, 329],    // stone
-        2: [661, 0, 321, 329],    // toxic
-        3: [1006, 20, 221, 229],    // water
-    };
+    //     0: [8, 9, 300, 236],      // grass
+    //     1: [334, 0, 321, 329],    // stone
+    //     2: [661, 0, 321, 329],    // toxic
+    //     3: [1006, 20, 221, 229],    // water
+    // };
 
     function drawFallbackPlayer(isMe) {
 
@@ -37,13 +37,13 @@ export function createRenderer(game) {
 
             const walkFrame =
                 Math.floor(game.animationTime / 10)
-                % game.SPRITES.player.walk.length;
+                % game.CONFIG.sprites.player.walk.length;
 
-            frame = game.SPRITES.player.walk[walkFrame];
+            frame = game.CONFIG.sprites.player.walk[walkFrame];
 
         } else {
 
-            frame = game.SPRITES.player.idle[0];
+            frame = game.CONFIG.sprites.player.idle[0];
         }
 
         const [sx, sy, sw, sh] = frame;
@@ -223,7 +223,7 @@ export function createRenderer(game) {
 
         game.state.bullets?.forEach(b => {
 
-            const bullet = game.SPRITES.bullet;
+            const bullet = game.CONFIG.sprites.bullet;
 
             ctx.save();
 
@@ -250,13 +250,27 @@ export function createRenderer(game) {
     }
 
     function renderEffects() {
+        // console.log(game.state.hits);
+        // console.log(game.CONFIG.sprites.hit);
 
         game.state.hits?.forEach(h => {
 
+            // const frame =
+            //     game.CONFIG.sprites.hit[
+            //         Math.floor(Date.now() / 40) % 3
+            //     ];
+            console.log(game.state.hits);
+
+            const hitFrames =
+                game.CONFIG.sprites.hit;
+
             const frame =
-                game.SPRITES.hit[
-                    Math.floor(Date.now() / 40) % 3
+                hitFrames[
+                    Math.floor(Date.now() / 40)
+                    % hitFrames.length
                 ];
+
+            if(!frame) return;
 
             ctx.save();
 
@@ -284,7 +298,7 @@ export function createRenderer(game) {
             if(effect.type === 'muzzle') {
 
                 const frame =
-                    game.SPRITES.muzzle[
+                    game.CONFIG.sprites.muzzle[
                         Math.floor(Date.now() / 40) % 3
                     ];
 
@@ -296,7 +310,7 @@ export function createRenderer(game) {
 
                 ctx.globalAlpha =
                     effect.life /
-                    game.EFFECTS.muzzleFlash.life;
+                    game.CONFIG.effects.muzzleFlash.life;
 
                 ctx.drawImage(
                     game.playerSheet,
@@ -383,8 +397,20 @@ export function createRenderer(game) {
                     // );
 
                     // Тайл из тайлсета
+                    // const sprite =
+                    //     game.CONFIG.sprites.tiles[ground];
+                    // const tileConfig =
+                    //     game.CONFIG.tiles[ground];
+                    const tileConfig =
+                        game.CONFIG.tiles?.[ground];
+
+                    if(!tileConfig) {
+                        console.warn("Unknown tile:", ground);
+                        continue;
+                    }
+
                     const sprite =
-                        TILE_SPRITES[ground];
+                        tileConfig.sprite;
 
                     ctx.drawImage(
                         game.tileSheet,

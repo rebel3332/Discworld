@@ -1,0 +1,22 @@
+{
+  "muzzleFlash": {
+    "radius": 15,
+    "life": 0.08,
+    "color": "#ff8"
+  },
+
+  "bulletTrail": {
+    "count": 3,
+    "life": 0.1
+  },
+
+  "hitFlash": {
+    "color": "#f44",
+    "radius": 20
+  },
+
+  "explosion": {
+    "particles": 12,
+    "colors": ["#f84", "#fa2", "#ff6"]
+  }
+}

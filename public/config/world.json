@@ -1,0 +1,11 @@
+{
+  "tile_size": 32,
+  "chunk_size": 32,
+
+  "tiles": {
+    "grass": 0,
+    "stone": 1,
+    "toxic": 2,
+    "water": 3
+  }
+}

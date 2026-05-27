@@ -20,6 +20,8 @@
     <script type="module">
         // import { renderGame } from './js/render.js';
         import { createRenderer } from '/static/js/render.js';
+        import { loadAllConfigs } from '/static/js/config.js';
+        const CONFIG = await loadAllConfigs();
 
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
@@ -47,61 +49,61 @@
         let animationTime = 0;
         
         // Настройки эффектов
-        const EFFECTS = {
-            // Эффекты выстрелов и попаданий
-            muzzleFlash: { radius: 15, life: 0.08, color: "#ff8" },
-            // Эффект следа от пули (можно расширить до спрайта дыма)
-            bulletTrail: { count: 3, life: 0.1 },
-            // Эффект попадания (можно расширить до анимации взрыва)
-            hitFlash: { color: "#f44", radius: 20 },
-            // Эффект взрыва (можно расширить до спрайта взрыва)
-            explosion: { particles: 12, colors: ["#f84", "#fa2", "#ff6"] }
-        };
+        // const EFFECTS = {
+        //     // Эффекты выстрелов и попаданий
+        //     muzzleFlash: { radius: 15, life: 0.08, color: "#ff8" },
+        //     // Эффект следа от пули (можно расширить до спрайта дыма)
+        //     bulletTrail: { count: 3, life: 0.1 },
+        //     // Эффект попадания (можно расширить до анимации взрыва)
+        //     hitFlash: { color: "#f44", radius: 20 },
+        //     // Эффект взрыва (можно расширить до спрайта взрыва)
+        //     explosion: { particles: 12, colors: ["#f84", "#fa2", "#ff6"] }
+        // };
         
         // Локальные эффекты (не синхронизируются с сервером)
         let localEffects = [];
 
         let spritesLoaded = false;
 
-        const SPRITES = {
+        // const CONFIG.sprites = {
 
-            player: {
+        //     player: {
 
-                idle: [
-                    // [32,157,32,32],
-                    // [275,157,32,32],
-                    [42,192,132,132],
-                    [237,192,132,132]
-                ],
+        //         idle: [
+        //             // [32,157,32,32],
+        //             // [275,157,32,32],
+        //             [42,192,132,132],
+        //             [237,192,132,132]
+        //         ],
 
-                walk: [
-                    [42,432,85,127],
-                    [145,432,85,127],
-                    [245,432,85,127],
-                    [343,432,85,127],
-                    [440,432,85,127],
-                    [530,432,80,127],
-                ]
-            },
+        //         walk: [
+        //             [42,432,85,127],
+        //             [145,432,85,127],
+        //             [245,432,85,127],
+        //             [343,432,85,127],
+        //             [440,432,85,127],
+        //             [530,432,80,127],
+        //         ]
+        //     },
 
-            weapon: {
-                rifle: [661,244,143,80]
-            },
+        //     weapon: {
+        //         rifle: [661,244,143,80]
+        //     },
 
-            muzzle: [
-                [274,676,74,74],
-                [363,670,103,67],
-                [468,661,123,80]
-            ],
+        //     muzzle: [
+        //         [274,676,74,74],
+        //         [363,670,103,67],
+        //         [468,661,123,80]
+        //     ],
 
-            bullet: [671,777,40,20],
+        //     bullet: [671,777,40,20],
 
-            hit: [
-                [650, 860, 90, 90],
-                [760, 850, 120, 120],
-                [870, 840, 150, 150]
-            ]
-        };
+        //     hit: [
+        //         [650, 860, 90, 90],
+        //         [760, 850, 120, 120],
+        //         [870, 840, 150, 150]
+        //     ]
+        // };
         
         const game = {
             ctx,
@@ -110,9 +112,10 @@
             myId,
             spritesLoaded,
             playerSheet,
-            SPRITES,
+            // SPRITES,
             tileSheet, // Спрайты для тайлов
-            EFFECTS,
+            // EFFECTS,
+            CONFIG,
             localEffects,
             spectatorMode,
             animationTime: 0,
@@ -216,7 +219,7 @@
                         type: 'muzzle',
                         x: p.x + Math.cos(angle)*15,
                         y: p.y + Math.sin(angle)*15,
-                        life: game.EFFECTS.muzzleFlash.life,
+                        life: game.CONFIG.effects.muzzleFlash.life,
                         angle: angle
                     });
                 }

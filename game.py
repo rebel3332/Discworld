@@ -363,8 +363,6 @@ class Game:
 
                     break
 
-
-
         # Враг -> игрок
         for e in self.enemies[:]:
             for cid, p in self.players.items():
@@ -937,5 +935,14 @@ class Game:
                     "radius": b.radius
                 }
                 for b in self.bullets
+            ],
+            "hits": [
+                {
+                    "id": h.id,
+                    "x": h.x,
+                    "y": h.y,
+                    "color": h.color
+                }
+                for h in self.hit_effects
             ],
         }

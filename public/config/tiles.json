@@ -1,0 +1,26 @@
+{
+  "0": {
+    "name": "grass",
+    "sprite": [8,9,300,236],
+    "walkable": true
+  },
+
+  "1": {
+    "name": "stone",
+    "sprite": [334,0,321,329],
+    "walkable": true
+  },
+
+  "2": {
+    "name": "toxic",
+    "sprite": [661,0,321,329],
+    "walkable": true,
+    "damage": 5
+  },
+
+  "3": {
+    "name": "water",
+    "sprite": [1006,20,221,229],
+    "walkable": false
+  }
+}
