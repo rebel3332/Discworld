@@ -15,8 +15,10 @@ export function createRenderer(game) {
     //     3: [1006, 20, 221, 229],    // water
     // };
 
-    function drawFallbackPlayer(isMe) {
-
+    function drawFallbackPlayer(p, isMe) {
+        // Если спрайты не загрузились, рисуем простого игрока в виде круга
+        
+        // Зеленый для себя, фиолетовый для других
         ctx.fillStyle = isMe ? '#0f0' : '#a0f';
 
         ctx.beginPath();
@@ -32,6 +34,7 @@ export function createRenderer(game) {
             p.isMoving || false;
 
         let frame;
+
 
         if (moving) {
 
@@ -179,7 +182,7 @@ export function createRenderer(game) {
             ctx.translate(e.x - game.camera.x, e.y - game.camera.y);
             ctx.rotate(e.angle - Math.PI / 2);
             if(!game.spritesLoaded) {
-                drawFallbackPlayer(isMe);
+                drawFallbackPlayer(e, false);
             } else {
                 drawSpritePlayer(e);
             }
@@ -194,17 +197,50 @@ export function createRenderer(game) {
         });
     }
 
+    // Рисуем лучи сенсоров для отладки
+    function drawDebugRays(p) {
+        if(
+            !game.CONFIG.sensors.visible
+            ||
+            !p.debug_rays
+        ) {
+            return;
+        }
+
+        ctx.strokeStyle = "#0ff";
+
+        for(const ray of p.debug_rays) {
+
+            ctx.beginPath();
+
+            ctx.moveTo(
+                ray.x1 - game.camera.x,
+                ray.y1 - game.camera.y
+            );
+
+            ctx.lineTo(
+                ray.x2 - game.camera.x,
+                ray.y2 - game.camera.y
+            );
+
+            ctx.stroke();
+        }
+    }
+
     function renderPlayers() {
 
         game.state.players?.forEach(p => {
 
             const isMe = p.id === game.myId;
 
+            // Рисуем лучи сенсоров для отладки
+            drawDebugRays(p);
+
             ctx.save();
             ctx.translate(p.x - game.camera.x, p.y - game.camera.y);
             ctx.rotate(p.angle - Math.PI / 2);
             if(!game.spritesLoaded) {
-                drawFallbackPlayer(isMe);
+                drawFallbackPlayer(p, isMe);
             } else {
                 drawSpritePlayer(p);
             }

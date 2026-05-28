@@ -8,7 +8,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from game import Game
+from game import Game, PROTOCOL_RAYCAST
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
@@ -128,9 +128,18 @@ async def game_loop():
                     player = game.players.get(cid)
                     if not player:
                         continue
-                    snapshot_cache[cid] = json.dumps(
-                        game.get_snapshot_for(player)
-                    )
+                    # snapshot_cache[cid] = json.dumps(
+                    #     game.get_snapshot_for(player)
+                    # )
+                    if player.protocol_version >= PROTOCOL_RAYCAST:
+                        snapshot = game.get_bot_observation(
+                            player
+                        )
+                    else:
+                        snapshot = game.get_snapshot_for(
+                            player
+                        )
+                    snapshot_cache[cid] = json.dumps(snapshot)
 
             dead_clients = []
 
@@ -267,6 +276,10 @@ async def websocket_endpoint(ws: WebSocket):
             bot_name = hello.get("name", "Bot")[:24]
             player.name = bot_name
             player.is_bot = True
+            player.protocol_version = hello.get(
+                "protocol",
+                1
+            )
 
     except Exception:
         pass

@@ -5,6 +5,11 @@ from dataclasses import dataclass, field
 from typing import List, Dict
 
 from world import World
+from config import SENSORS
+
+PROTOCOL_LEGACY = 1
+PROTOCOL_RAYCAST = 2
+
 
 ENEMY_TYPES = {
 
@@ -54,6 +59,8 @@ class Player(Entity):
     enemy_hits: int = 0
     player_hits: int = 0
     survival_ticks: int = 0
+
+    protocol_version: int = 1
 
     def respawn(self, width, height):
         self.hp = 100
@@ -379,6 +386,180 @@ class Game:
                         # p.y = self.H // 2
                         p.respawn(self.W, self.H)
 
+    def cast_ray(
+        self,
+        x,
+        y,
+        angle,
+        max_distance=300,
+        step=4
+    ):
+        """Отправляет луч из точки (x, y) в направлении angle и возвращает информацию о первом столкновении с стеной"""
+        dx = math.cos(angle)
+        dy = math.sin(angle)
+
+        distance = 0
+
+        while distance < max_distance:
+
+            px = x + dx * distance
+            py = y + dy * distance
+
+            if not self.world.isWalkable(px, py):
+
+                return {
+                    "distance": distance / max_distance,
+                    "hit_x": px,
+                    "hit_y": py
+                }
+
+            distance += step
+
+        return {
+            "distance": 1.0,
+            "hit_x": x + dx * max_distance,
+            "hit_y": y + dy * max_distance
+        }
+
+    def build_sensor_data(self, player: Player):
+        """Строит данные для сенсоров бота на основе его положения и мира"""
+        if  not player.is_bot or player.protocol_version < PROTOCOL_RAYCAST:
+            return {
+                "sensors": None,
+                "debug_rays": None
+            }
+        sensors = []
+
+        debug_rays = []
+
+        sensor_configs = SENSORS.get(
+            "rays",
+            []
+        )
+
+        max_distance = SENSORS.get(
+            "max_distance",
+            300
+        )
+
+        step = SENSORS.get(
+            "step",
+            4
+        )
+
+        for sensor in sensor_configs:
+
+            sensor_angle = sensor.get(
+                "angle",
+                0
+            )
+
+            angle = (
+                player.angle
+                +
+                math.radians(sensor_angle)
+            )
+
+            ray = self.cast_ray(
+                player.x,
+                player.y,
+                angle,
+                max_distance=max_distance,
+                step=step
+            )
+
+            sensors.append(
+                ray["distance"]
+            )
+
+            debug_rays.append({
+                "x1": player.x,
+                "y1": player.y,
+                "x2": ray["hit_x"],
+                "y2": ray["hit_y"]
+            })
+
+        return {
+            "sensors": sensors,
+            "debug_rays": debug_rays
+        }
+
+    # def get_bot_observation(self, player):
+    #     sensors = []
+    #     debug_rays = []
+    #     sensor_configs = SENSORS.get(
+    #         "rays",
+    #         []
+    #     )
+    #     max_distance = SENSORS.get(
+    #         "max_distance",
+    #         300
+    #     )
+    #     step = SENSORS.get(
+    #         "step",
+    #         4
+    #     )
+
+    #     for sensor in sensor_configs:
+    #         sensor_angle = sensor.get(
+    #             "angle",
+    #             0
+    #         )
+    #         angle = (
+    #             player.angle
+    #             +
+    #             math.radians(sensor_angle)
+    #         )
+    #         ray = self.cast_ray(
+    #             player.x,
+    #             player.y,
+    #             angle,
+    #             max_distance=max_distance,
+    #             step=step
+    #         )
+    #         sensors.append(
+    #             ray["distance"]
+    #         )
+    #         debug_rays.append({
+    #             "x1": player.x,
+    #             "y1": player.y,
+    #             "x2": ray["hit_x"],
+    #             "y2": ray["hit_y"]
+    #         })
+
+    #     return {
+    #         "type": "bot_observation_v1",
+    #         "self": {
+    #             "id": player.id,
+    #             "x": player.x,
+    #             "y": player.y,
+    #             "hp": player.hp / 100.0,
+    #             "angle": player.angle
+    #         },
+    #         "sensors": sensors,
+    #         "debug_rays": debug_rays
+    #     }
+
+    def get_bot_observation(self, player):
+        """"""
+        sensor_data = self.build_sensor_data(
+            player
+        )
+
+        return {
+
+            "type": "bot_observation_v1",
+
+            "self": {
+                "id": player.id,
+                "x": player.x,
+                "y": player.y,
+                "hp": player.hp / 100.0,
+                "angle": player.angle
+            },
+
+            "sensors": sensor_data["sensors"]
+        }
 
     def _create_explosion(self, x: float, y: float):
         """Создаёт партиклы взрыва"""
@@ -884,6 +1065,8 @@ class Game:
                 radius=1
             )
 
+            
+
         return {
 
             "world": {
@@ -906,6 +1089,7 @@ class Game:
                     "radius": p.radius,
                     "angle": p.angle,
                     "is_bot": p.is_bot,
+                    "debug_rays": self.build_sensor_data(p)["debug_rays"],
                 }
                 for p in self.players.values()
             ],

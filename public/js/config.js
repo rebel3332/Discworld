@@ -18,14 +18,16 @@ export async function loadAllConfigs() {
         effects,
         entities,
         world,
-        tiles
+        tiles,
+        sensors
     ] = await Promise.all([
 
         loadConfig('/static/config/sprites.json'),
         loadConfig('/static/config/effects.json'),
         loadConfig('/static/config/entities.json'),
         loadConfig('/static/config/world.json'),
-        loadConfig('/static/config/tiles.json')
+        loadConfig('/static/config/tiles.json'),
+        loadConfig('/static/config/sensors.json')
     ]);
 
     return {
@@ -33,6 +35,7 @@ export async function loadAllConfigs() {
         effects,
         entities,
         world,
-        tiles
+        tiles,
+        sensors
     };
 }

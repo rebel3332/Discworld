@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+
+  "visible": true,
+
+  "max_distance": 300,
+
+  "step": 4,
+
+  "rays": [
+    { "angle": -45 },
+    { "angle": 0 },
+    { "angle": 45 }
+  ]
+}
