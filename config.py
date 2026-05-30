@@ -10,3 +10,7 @@ def load_json(path):
 SENSORS = load_json(
     "public/config/sensors.json"
 )
+
+WORLDS = load_json(
+    "public/config/world.json"
+)

@@ -28,10 +28,14 @@ export function createRenderer(game) {
 
     function drawSpritePlayer(p) {
 
+        // const moving =
+        //     Math.abs(p.vx || 0) > 0.05 ||
+        //     Math.abs(p.vy || 0) > 0.05 ||
+        //     p.isMoving || false;
+
         const moving =
-            Math.abs(p.vx || 0) > 0.05 ||
-            Math.abs(p.vy || 0) > 0.05 ||
-            p.isMoving || false;
+            p.isMoving ||
+            false;
 
         let frame;
 
@@ -211,6 +215,15 @@ export function createRenderer(game) {
 
         for(const ray of p.debug_rays) {
 
+            if(ray.type === "enemy") {
+                ctx.strokeStyle = "red";
+            }
+            else if(ray.type === "wall") {
+                ctx.strokeStyle = "blue";
+            }
+            else {
+                ctx.strokeStyle = "rgba(255,255,255,0.2)";
+            }
             ctx.beginPath();
 
             ctx.moveTo(

@@ -193,11 +193,17 @@
             if(!ws || ws.readyState !== WebSocket.OPEN) return;
             if(game.spectatorMode) return;
             
-            let dx = 0, dy = 0;
-            if(keys['KeyW']||keys['ArrowUp']) dy = -1;
-            if(keys['KeyS']||keys['ArrowDown']) dy = 1;
-            if(keys['KeyA']||keys['ArrowLeft']) dx = -1;
-            if(keys['KeyD']||keys['ArrowRight']) dx = 1;
+            // let dx = 0, dy = 0;
+            let move_front_back = 0, move_left_right = 0;
+            // if(keys['KeyW']||keys['ArrowUp']) dy = -1;
+            // if(keys['KeyS']||keys['ArrowDown']) dy = 1;
+            // if(keys['KeyA']||keys['ArrowLeft']) dx = -1;
+            // if(keys['KeyD']||keys['ArrowRight']) dx = 1;
+
+            if(keys['KeyW']||keys['ArrowUp']) move_front_back = 1;
+            if(keys['KeyS']||keys['ArrowDown']) move_front_back = -1;
+            if(keys['KeyA']||keys['ArrowLeft']) move_left_right = -1;
+            if(keys['KeyD']||keys['ArrowRight']) move_left_right = 1;
             
             let angle = 0;
             const worldMouseX =
@@ -226,7 +232,8 @@
             }
             //shootCooldown = Math.max(0, shootCooldown - 1);
             
-            ws.send(JSON.stringify({ dx, dy, shoot: canShoot, angle }));
+            // ws.send(JSON.stringify({ dx, dy, shoot: canShoot, angle }));
+            ws.send(JSON.stringify({ move_front_back, move_left_right, shoot: canShoot, angle }));
         }
                
         // Старт

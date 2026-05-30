@@ -1,7 +1,7 @@
 # world.py
 
 import random
-
+from config import WORLDS
 
 
 
@@ -24,22 +24,10 @@ class World:
         self.CHUNK_SIZE = 30 # в тайлах (например, 16x16)
         self.TILE_SIZE = 32 # в пикселях
 
-    # def chunk_exists(self, cx, cy):
-    #     """ Проверяет не выходит ли чанк за границы мира<br>
-    #     true - чанк существует, false - за границами мира"""
+        self.config = WORLDS
 
-    #     start_x = cx * self.CHUNK_SIZE * self.TILE_SIZE
-    #     start_y = cy * self.CHUNK_SIZE * self.TILE_SIZE
-    #     if start_x >= self.world_width:
-    #         return False
-    #     if start_y >= self.world_height:
-    #         return False
-    #     if start_x < 0:
-    #         return False
-    #     if start_y < 0:
-    #         return False
-    #     return True
-
+        self.biome_name = self.config["active_biome"]
+        self.biome = self.config["biomes"][self.biome_name]
 
     def get_chunk(self, cx, cy):
 
@@ -78,22 +66,46 @@ class World:
                     ])
 
                 else:
-                    v = (
-                        random.random()
-                    )
-                    if v < 0.1:
-                        ground = self.TILE_STONE
-                        walkable = 0
-                    elif v < 0.2:
-                        ground = self.TILE_TOXIC
-                        walkable = 1
-                    else:
-                        ground = self.TILE_GRASS
-                        walkable = 1
+                    ## Генерация тайла исходя из захардкоженной вероятности
+                    # v = (
+                    #     random.random()
+                    # )
+                    # if v < 0.1:
+                    #     ground = self.TILE_STONE
+                    #     walkable = 0
+                    # elif v < 0.2:
+                    #     ground = self.TILE_TOXIC
+                    #     walkable = 1
+                    # else:
+                    #     ground = self.TILE_GRASS
+                    #     walkable = 1
+                    # row.append([
+                    #     ground,
+                    #     walkable
+                    # ])
+
+                    # Генерация тайла 
+                    # Исходя из верояностей поялвения тайлов выбранного биома
+                    tile_weights = self.biome["tile_weights"]
+
+                    tile_names = list(tile_weights.keys())
+                    weights = list(tile_weights.values())
+
+                    tile_name = random.choices(
+                        tile_names,
+                        weights=weights
+                    )[0]
+                    tile_id = self.config["tiles"][tile_name]
+
+                    props = self.config["tile_properties"][tile_name]
+
+                    walkable = 1 if props["walkable"] else 0
+
                     row.append([
-                        ground,
+                        tile_id,
                         walkable
                     ])
+
             tiles.append(row)
 
         return {

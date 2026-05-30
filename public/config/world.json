@@ -7,5 +7,74 @@
     "stone": 1,
     "toxic": 2,
     "water": 3
-  }
+  },
+
+  "tile_properties": {
+    "grass": {
+      "walkable": true
+    },
+    "stone": {
+      "walkable": false
+    },
+    "toxic": {
+      "walkable": true,
+      "damage_per_second": 5
+    },
+    "water": {
+      "walkable": false
+    }
+  },
+
+  "biomes": {
+
+    "field": {
+
+      "tile_weights": {
+        "grass": 85,
+        "stone": 5,
+        "toxic": 10
+      },
+
+      "enemy_weights": {
+        "zombie": 75,
+        "hunter": 20,
+        "boss": 5
+      }
+
+    },
+
+    "toxic_world": {
+
+      "tile_weights": {
+        "grass": 20,
+        "stone": 10,
+        "toxic": 70
+      },
+
+      "enemy_weights": {
+        "zombie": 20,
+        "hunter": 60,
+        "boss": 20
+      }
+
+    },
+
+    "maze": {
+
+      "tile_weights": {
+        "grass": 35,
+        "stone": 60,
+        "toxic": 5
+      },
+
+      "enemy_weights": {
+        "hunter": 90,
+        "boss": 10
+      }
+
+    }
+
+  },
+
+  "active_biome": "field"
 }

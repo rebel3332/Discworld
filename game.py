@@ -53,8 +53,10 @@ class Player(Entity):
     score: int = 0
     is_bot: bool = False
     shoot_cooldown: float = 0.0 # время до следующего выстрела
-    vx: float = 0.0
-    vy: float = 0.0
+    vx: float = 0.0 # Устарело, но пока оставлю
+    vy: float = 0.0 # Устарело, но пока оставлю
+    isMoving : bool = False # Признак того что игрок двигается
+    isShoot: bool = False # Признак того что игрок стреляет 
     # добавил для bot_ppo_2
     enemy_hits: int = 0
     player_hits: int = 0
@@ -91,7 +93,7 @@ class Enemy(Entity):
         )
 
         super().__init__(**kwds)
-        print(f"Spawned enemy {self.name} with HP {self.hp} and speed {self.speed}, radius {self.radius}")
+        # print(f"Spawned enemy {self.name} with HP {self.hp} and speed {self.speed}, radius {self.radius}")
 
 
 @dataclass
@@ -241,55 +243,205 @@ class Game:
 
                     return
 
-    def process_inputs(self, cid: int, dx: float, dy: float, shoot: bool, angle: float):
-        if cid not in self.players: return
-        p = self.players[cid]
-        p.angle = angle
-        p.vx = dx
-        p.vy = dy
+    # def process_inputs(self, cid: int, dx: float, dy: float, shoot: bool, angle: float):
+    #     if cid not in self.players: return
+    #     p = self.players[cid]
+    #     p.angle = angle
+    #     p.vx = dx
+    #     p.vy = dy
         
-        # 🔒 Движение: нормализуем вектор (анти-спидхак)
-        if dx != 0 or dy != 0:
-            length = math.hypot(dx, dy)
-            speed = 4.0
-            # p.x += (dx / length) * speed * self.dt * 60
-            # p.y += (dy / length) * speed * self.dt * 60
-            # # Ограничение полем
-            # p.x = max(p.radius, min(self.W - p.radius, p.x))
-            # p.y = max(p.radius, min(self.H - p.radius, p.y))
+    #     # 🔒 Движение: нормализуем вектор (анти-спидхак)
+    #     if dx != 0 or dy != 0:
+    #         length = math.hypot(dx, dy)
+    #         speed = 4.0
+    #         # p.x += (dx / length) * speed * self.dt * 60
+    #         # p.y += (dy / length) * speed * self.dt * 60
+    #         # # Ограничение полем
+    #         # p.x = max(p.radius, min(self.W - p.radius, p.x))
+    #         # p.y = max(p.radius, min(self.H - p.radius, p.y))
 
-            new_x = p.x + (dx / length) * speed * self.dt * 60
-            new_y = p.y + (dy / length) * speed * self.dt * 60
-            # Ограничение полем (границами мира)
-            new_x = max(p.radius, min(self.W - p.radius, new_x))
-            new_y = max(p.radius, min(self.H - p.radius, new_y))
+    #         new_x = p.x + (dx / length) * speed * self.dt * 60
+    #         new_y = p.y + (dy / length) * speed * self.dt * 60
+    #         # Ограничение полем (границами мира)
+    #         new_x = max(p.radius, min(self.W - p.radius, new_x))
+    #         new_y = max(p.radius, min(self.H - p.radius, new_y))
 
-            # Проверка коллизий с миром (с учетом радиуса)
-            if self.can_move_to(new_x, p.y, p.radius):
+    #         # Проверка коллизий с миром (с учетом радиуса)
+    #         if self.can_move_to(new_x, p.y, p.radius):
+    #             p.x = new_x
+
+    #         if self.can_move_to(p.x, new_y, p.radius):
+    #             p.y = new_y
+
+    #         self.resolve_collision(p)
+    #     # 🔒 Выстрел
+    #     if shoot and p.shoot_cooldown <= 0:
+    #         bullet = Bullet(
+    #             id=self.next_id,
+    #             x=p.x,
+    #             y=p.y,
+    #             radius=4,
+    #             vx=math.cos(angle)*10,
+    #             vy=math.sin(angle)*10
+    #         )
+
+    #         bullet.owner = cid
+
+    #         self.bullets.append(bullet)
+    #         p.shoot_cooldown = 0.15  # 150ms между выстрелами
+    #         self.next_id += 1
+
+    def process_inputs(
+        self,
+        cid,
+        look_angle,
+        shoot,
+        move_left_right,
+        move_front_back,
+        is_aim_angle=True
+    ):
+        """
+            look_angle - Угол взгляда или угол поворота <br>
+            is_aim_angle - переключает режим. True - Реальный угол (для направления на мышку) <br>
+                            False - Относительный угол <br>
+            move_left_right - динамическое движение влево или вправо относительно угла взгляда <br>
+            move_front_back - динамическое движение вперед или назад относительно угла взгляда <br>
+        """
+
+        # print(cid, move_left_right, move_front_back, shoot, look_angle)
+        if cid not in self.players:
+            return
+
+        p = self.players[cid]
+
+        # =====================================
+        # LOOK
+        # =====================================
+
+        ROT_SPEED = 0.15
+
+        if is_aim_angle:
+            p.angle = look_angle
+        else:
+            p.angle += look_angle * ROT_SPEED
+
+        # normalize angle
+        while p.angle > math.pi:
+            p.angle -= math.pi * 2
+
+        while p.angle < -math.pi:
+            p.angle += math.pi * 2
+
+        # =====================================
+        # LOCAL MOVEMENT
+        # =====================================
+
+        forward_x = math.cos(p.angle)
+        forward_y = math.sin(p.angle)
+
+        right_x = -math.sin(p.angle)
+        right_y = math.cos(p.angle)
+
+        move_x = (
+            forward_x * move_front_back
+            +
+            right_x * move_left_right
+        )
+
+        move_y = (
+            forward_y * move_front_back
+            +
+            right_y * move_left_right
+        )
+
+        # =====================================
+        # NORMALIZATION
+        # =====================================
+
+        length = math.hypot(move_x, move_y)
+        p.isMoving = length > 0
+
+        if length > 0:
+
+            move_x /= length
+            move_y /= length
+
+            MOVE_SPEED = 4.0
+
+            new_x = (
+                p.x
+                +
+                move_x * MOVE_SPEED * self.dt * 60
+            )
+
+            new_y = (
+                p.y
+                +
+                move_y * MOVE_SPEED * self.dt * 60
+            )
+
+            if self.can_move_to(
+                new_x,
+                p.y,
+                p.radius
+            ):
                 p.x = new_x
 
-            if self.can_move_to(p.x, new_y, p.radius):
+            if self.can_move_to(
+                p.x,
+                new_y,
+                p.radius
+            ):
                 p.y = new_y
 
             self.resolve_collision(p)
-        # 🔒 Выстрел
-        if shoot and p.shoot_cooldown <= 0:
+
+        # =====================================
+        # SHOOT
+        # =====================================
+
+        p.isShoot = shoot > 0
+        if shoot > 0 and p.shoot_cooldown <= 0:
+
             bullet = Bullet(
                 id=self.next_id,
                 x=p.x,
                 y=p.y,
                 radius=4,
-                vx=math.cos(angle)*10,
-                vy=math.sin(angle)*10
+                vx=math.cos(p.angle) * 10,
+                vy=math.sin(p.angle) * 10
             )
 
             bullet.owner = cid
 
             self.bullets.append(bullet)
-            p.shoot_cooldown = 0.15  # 150ms между выстрелами
+
+            p.shoot_cooldown = 0.15
+
             self.next_id += 1
 
+
     def _check_collisions(self):
+        # Пуля -> стены
+        for b in self.bullets[:]:
+
+            if not self.can_move_to(b.x, b.y, b.radius):
+
+                # уничтожаем пулю
+                b.lifetime = 0
+
+                # эффект попадания в стену
+                if not self.fast_mode:
+                    self.hit_effects.append(HitEffect(
+                        id=self.next_effect_id,
+                        x=b.x,
+                        y=b.y,
+                        lifetime=0.15,
+                        color="#ccc"
+                    ))
+
+                self.next_effect_id += 1
+
         # Пуля -> враг
         for b in self.bullets[:]:
             bullet_owner = getattr(b, "owner", None)
@@ -307,12 +459,13 @@ class Game:
                         owner_player.enemy_hits += 1
 
                     # эффект попадания
-                    self.hit_effects.append(HitEffect(
-                        id=self.next_effect_id,
-                        x=e.x,
-                        y=e.y,
-                        lifetime=0.2
-                    ))
+                    if not self.fast_mode:
+                        self.hit_effects.append(HitEffect(
+                            id=self.next_effect_id,
+                            x=e.x,
+                            y=e.y,
+                            lifetime=0.2
+                        ))
                     self.next_effect_id += 1
 
                     # смерть врага
@@ -347,13 +500,14 @@ class Game:
                         owner_player.score += 20
                         owner_player.player_hits += 1
 
-                    self.hit_effects.append(HitEffect(
-                        id=self.next_effect_id,
-                        x=p.x,
-                        y=p.y,
-                        lifetime=0.2,
-                        color="#a0f"
-                    ))
+                    if not self.fast_mode:
+                        self.hit_effects.append(HitEffect(
+                            id=self.next_effect_id,
+                            x=p.x,
+                            y=p.y,
+                            lifetime=0.2,
+                            color="#a0f"
+                        ))
 
                     self.next_effect_id += 1
 
@@ -421,16 +575,185 @@ class Game:
             "hit_y": y + dy * max_distance
         }
 
+
+    def cast_enemy_ray(
+        self,
+        player,
+        angle,
+        max_distance=300,
+        step=4
+    ):
+        """
+        Луч видимости врагов.
+
+        Возвращает:
+        - distance до врага
+        - 1.0 если враг не виден
+        """
+
+        dx = math.cos(angle)
+        dy = math.sin(angle)
+
+        distance = 0
+
+        while distance < max_distance:
+
+            px = player.x + dx * distance
+            py = player.y + dy * distance
+
+            # =====================================
+            # Стена блокирует обзор
+            # =====================================
+
+            if not self.world.isWalkable(px, py):
+                
+                return {
+                    "distance": 1.0,
+                    "hit_x": px,
+                    "hit_y": py,
+                    "hit_type": "wall"
+                }
+
+            # =====================================
+            # Проверяем врагов
+            # =====================================
+
+            for enemy in self.enemies:
+
+                dist_to_enemy = math.hypot(
+                    px - enemy.x,
+                    py - enemy.y
+                )
+
+                if dist_to_enemy <= enemy.radius:
+
+                    return {
+                        "distance": distance / max_distance,
+                        # "hit_x": enemy.x, # Какой-то АвтоАИМ
+                        # "hit_y": enemy.y,
+                        "hit_x": px, 
+                        "hit_y": py,
+                        "hit_type": "enemy",
+                        "enemy_id": enemy.id
+                    }
+
+            distance += step
+
+        return {
+            "distance": 1.0,
+            "hit_x": player.x + dx * max_distance,
+            "hit_y": player.y + dy * max_distance,
+            "hit_type": None
+        }
+
+    def cast_enemy_and_player_ray(
+        self,
+        player,
+        angle,
+        max_distance=300,
+        step=4
+    ):
+        """
+        Луч видимости врагов.
+
+        Возвращает:
+        - distance до врага
+        - 1.0 если враг не виден
+        """
+
+        dx = math.cos(angle)
+        dy = math.sin(angle)
+
+        distance = 0
+
+        while distance < max_distance:
+
+            px = player.x + dx * distance
+            py = player.y + dy * distance
+
+            # =====================================
+            # Стена блокирует обзор
+            # =====================================
+
+            if not self.world.isWalkable(px, py):
+                
+                return {
+                    "distance": 1.0,
+                    "hit_x": px,
+                    "hit_y": py,
+                    "hit_type": "wall"
+                }
+
+            # =====================================
+            # Проверяем врагов
+            # =====================================
+
+            for enemy in self.enemies:
+
+                dist_to_enemy = math.hypot(
+                    px - enemy.x,
+                    py - enemy.y
+                )
+
+                if dist_to_enemy <= enemy.radius:
+
+                    return {
+                        "distance": distance / max_distance,
+                        # "hit_x": enemy.x, # Какой-то АвтоАИМ
+                        # "hit_y": enemy.y,
+                        "hit_x": px, 
+                        "hit_y": py,
+                        "hit_type": "enemy",
+                        "enemy_id": enemy.id
+                    }
+                
+            for enemy_player in self.players:
+
+                dist_to_enemy = math.hypot(
+                    px - enemy.x,
+                    py - enemy.y
+                )
+
+                if dist_to_enemy <= enemy_player.radius:
+
+                    return {
+                        "distance": distance / max_distance,
+                        # "hit_x": enemy.x, # Какой-то АвтоАИМ
+                        # "hit_y": enemy.y,
+                        "hit_x": px, 
+                        "hit_y": py,
+                        "hit_type": "enemy",
+                        "enemy_id": enemy_player.id
+                    }
+
+            distance += step
+
+        return {
+            "distance": 1.0,
+            "hit_x": player.x + dx * max_distance,
+            "hit_y": player.y + dy * max_distance,
+            "hit_type": None
+        }
+
     def build_sensor_data(self, player: Player):
         """Строит данные для сенсоров бота на основе его положения и мира"""
-        if  not player.is_bot or player.protocol_version < PROTOCOL_RAYCAST:
+        if  False: #not player.is_bot: #or player.protocol_version < PROTOCOL_RAYCAST:
             return {
-                "sensors": None,
-                "debug_rays": None
+                # "sensors": None,
+                # "debug_rays": None
+                "wall_sensors": None,
+                "enemy_sensors": None,
+                "wall_debug_rays": None,
+                "enemy_debug_rays": None
             }
-        sensors = []
+        # sensors = []
+        # debug_rays = []
 
-        debug_rays = []
+        wall_sensors = []
+        enemy_sensors = []
+
+        wall_debug_rays = []
+        enemy_debug_rays = []
 
         sensor_configs = SENSORS.get(
             "rays",
@@ -460,7 +783,31 @@ class Game:
                 math.radians(sensor_angle)
             )
 
-            ray = self.cast_ray(
+            # ray = self.cast_ray(
+            #     player.x,
+            #     player.y,
+            #     angle,
+            #     max_distance=max_distance,
+            #     step=step
+            # )
+            #
+            # sensors.append(
+            #     ray["distance"]
+            # )
+
+            # debug_rays.append({
+            #     "x1": player.x,
+            #     "y1": player.y,
+            #     "x2": ray["hit_x"],
+            #     "y2": ray["hit_y"]
+            # })
+            #
+            # return {
+            #     "sensors": sensors,
+            #     "debug_rays": debug_rays
+            # }
+
+            wall_ray = self.cast_ray(
                 player.x,
                 player.y,
                 angle,
@@ -468,20 +815,39 @@ class Game:
                 step=step
             )
 
-            sensors.append(
-                ray["distance"]
+            enemy_ray = self.cast_enemy_ray(
+                player,
+                angle,
+                max_distance=max_distance,
+                step=step
             )
 
-            debug_rays.append({
+            wall_sensors.append(
+                wall_ray["distance"]
+            )
+            enemy_sensors.append(
+                enemy_ray["distance"]
+            )
+            wall_debug_rays.append({
                 "x1": player.x,
                 "y1": player.y,
-                "x2": ray["hit_x"],
-                "y2": ray["hit_y"]
+                "x2": wall_ray["hit_x"],
+                "y2": wall_ray["hit_y"],
+                "type": "wall"
             })
-
+            enemy_debug_rays.append({
+                "x1": player.x,
+                "y1": player.y,
+                "x2": enemy_ray["hit_x"],
+                "y2": enemy_ray["hit_y"],
+                "type": enemy_ray["hit_type"]
+            })
+    
         return {
-            "sensors": sensors,
-            "debug_rays": debug_rays
+            "wall_sensors": wall_sensors,
+            "enemy_sensors": enemy_sensors,
+            "wall_debug_rays": wall_debug_rays,
+            "enemy_debug_rays": enemy_debug_rays,
         }
 
     # def get_bot_observation(self, player):
@@ -540,7 +906,7 @@ class Game:
     #         "debug_rays": debug_rays
     #     }
 
-    def get_bot_observation(self, player):
+    def get_bot_observation(self, player: Player):
         """"""
         sensor_data = self.build_sensor_data(
             player
@@ -549,16 +915,19 @@ class Game:
         return {
 
             "type": "bot_observation_v1",
-
+            
             "self": {
                 "id": player.id,
                 "x": player.x,
                 "y": player.y,
                 "hp": player.hp / 100.0,
-                "angle": player.angle
+                "angle": player.angle,
+                "score": player.score
             },
 
-            "sensors": sensor_data["sensors"]
+            # "sensors": sensor_data["sensors"]
+            "wall_sensors": sensor_data["wall_sensors"],
+            "enemy_sensors": sensor_data["enemy_sensors"]
         }
 
     def _create_explosion(self, x: float, y: float):
@@ -1000,8 +1369,10 @@ class Game:
                     "name": p.name,
                     "x": p.x,
                     "y": p.y,
-                    "vx": p.vx,
-                    "vy": p.vy,
+                    # "vx": p.vx,
+                    # "vy": p.vy,
+                    "isMoving": p.isMoving,
+                    "isShoot": p.isShoot,
                     "hp": p.hp,
                     "score": p.score,
                     "radius": p.radius,
@@ -1082,14 +1453,17 @@ class Game:
                     "name": p.name,
                     "x": p.x,
                     "y": p.y,
-                    "vx": p.vx,
-                    "vy": p.vy,
+                    # "vx": p.vx,
+                    # "vy": p.vy,
+                    "isMoving": p.isMoving,
+                    "isShoot": p.isShoot,
                     "hp": p.hp,
                     "score": p.score,
                     "radius": p.radius,
                     "angle": p.angle,
                     "is_bot": p.is_bot,
-                    "debug_rays": self.build_sensor_data(p)["debug_rays"],
+                    # "debug_rays": self.build_sensor_data(p)["wall_debug_rays"],
+                    "debug_rays": self.build_sensor_data(p)["enemy_debug_rays"],
                 }
                 for p in self.players.values()
             ],

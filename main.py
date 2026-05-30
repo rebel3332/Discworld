@@ -63,12 +63,19 @@ async def game_loop():
 
                 if cid in active_connections:
 
+                    # game.process_inputs(
+                    #     cid,
+                    #     inp.get("dx", 0),
+                    #     inp.get("dy", 0),
+                    #     inp.get("shoot", False),
+                    #     inp.get("angle", 0)
+                    # )
                     game.process_inputs(
-                        cid,
-                        inp.get("dx", 0),
-                        inp.get("dy", 0),
-                        inp.get("shoot", False),
-                        inp.get("angle", 0)
+                        cid=cid,
+                        move_left_right=inp.get("move_left_right", 0),
+                        move_front_back=inp.get("move_front_back", 0),
+                        shoot=inp.get("shoot", False),
+                        look_angle=inp.get("angle", 0)
                     )
 
                 client_inputs[cid] = {
@@ -98,7 +105,7 @@ async def game_loop():
             # =====================================================
             # FAST MODE
             # =====================================================
-
+            
             if realtime_mode:
 
                 game.set_fast_mode(False)
@@ -112,7 +119,7 @@ async def game_loop():
             # =====================================================
 
             # for _ in range(game.simulation_speed):
-            if (True):
+            if True:
                 game.tick()
 
             # =====================================================
@@ -120,22 +127,27 @@ async def game_loop():
             # =====================================================
 
             snapshot_cache = {}
-            if realtime_mode:
                 # snapshot = json.dumps(
                 #     game.get_snapshot()
                 # )
-                for cid in active_connections:
-                    player = game.players.get(cid)
-                    if not player:
-                        continue
-                    # snapshot_cache[cid] = json.dumps(
-                    #     game.get_snapshot_for(player)
-                    # )
-                    if player.protocol_version >= PROTOCOL_RAYCAST:
-                        snapshot = game.get_bot_observation(
-                            player
-                        )
-                    else:
+            
+            # Формируем данные для игроков
+            for cid in active_connections:
+                player = game.players.get(cid)
+                if not player:
+                    continue
+                # snapshot_cache[cid] = json.dumps(
+                #     game.get_snapshot_for(player)
+                # )
+                if player.protocol_version >= PROTOCOL_RAYCAST:
+                    # Предполагается что с 2 протоколом и выше только боты
+                    snapshot = game.get_bot_observation(
+                        player
+                    )
+                    snapshot_cache[cid] = json.dumps(snapshot)
+                else:
+                    if realtime_mode:
+                        # Людям отправляем только если включен режим realtime_mode
                         snapshot = game.get_snapshot_for(
                             player
                         )
