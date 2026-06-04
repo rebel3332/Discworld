@@ -19,6 +19,8 @@ ENEMY_TYPES = {
         "damage": 8,
         "radius": 24,
         "color": "#6f6",
+        "attack_cooldown": 4,
+        "attack_range": 30 
     },
 
     "hunter": {
@@ -27,6 +29,8 @@ ENEMY_TYPES = {
         "damage": 8,
         "radius": 14,
         "color": "#6f6",
+        "attack_cooldown": 3,
+        "attack_range": 20
     },
 
     "zombie": {
@@ -35,6 +39,8 @@ ENEMY_TYPES = {
         "damage": 20,
         "radius": 14,
         "color": "#9c6",
+        "attack_cooldown": 5,
+        "attack_range": 22
     },
 }
 
@@ -77,6 +83,7 @@ class Enemy(Entity):
     speed: float = 3.5
     isMoving: bool = False
     enemy_type: str = "hunter"
+    attack_cooldown: float = 0.0
 
     def __init__(self, enemy_type="hunter", **kwds):
         params = ENEMY_TYPES.get(enemy_type, ENEMY_TYPES["hunter"]) # Защита от неизвестного типа
@@ -453,6 +460,21 @@ class Game:
                     e.hp -= 1
                     b.lifetime = 0
 
+                     # Отталкивание
+                    knockback = 12  
+                    bullet_speed = math.hypot(
+                        b.vx,
+                        b.vy
+                    )
+                    if bullet_speed > 0:
+                        e.x += (
+                            b.vx / bullet_speed
+                        ) * knockback
+                        e.y += (
+                            b.vy / bullet_speed
+                        ) * knockback
+                        self.resolve_collision(e)
+
                     # очки владельцу пули
                     if bullet_owner in self.players:
                         owner_player = self.players[bullet_owner]
@@ -529,9 +551,15 @@ class Game:
         # Враг -> игрок
         for e in self.enemies[:]:
             for cid, p in self.players.items():
-                if math.hypot(p.x - e.x, p.y - e.y) < (p.radius + e.radius):
-                    p.hp -= 15
-                    e.hp = 0
+                # if math.hypot(p.x - e.x, p.y - e.y) < (p.radius + e.radius):
+                if math.hypot(p.x - e.x, p.y - e.y) < (p.radius + ENEMY_TYPES[e.enemy_type]["attack_range"]):
+                    # p.hp -= 15
+                    # e.hp = 0
+                   
+                    if e.attack_cooldown <= 0:
+                        damage = ENEMY_TYPES[e.enemy_type]["damage"]
+                        p.hp -= damage
+                        e.attack_cooldown = ENEMY_TYPES[e.enemy_type]["attack_cooldown"]
 
                     self._create_explosion(e.x, e.y)
 
@@ -541,6 +569,65 @@ class Game:
                         # p.x = self.W // 2
                         # p.y = self.H // 2
                         p.respawn(self.W, self.H)
+
+    def resolve_entity_overlap(self, a, b):
+        """Разрешаем коллизию между двумя сущностями a и b, 
+        отталкивая их друг от друга, если они пересекаются"""
+        dx = b.x - a.x
+        dy = b.y - a.y
+
+        dist = math.hypot(dx, dy)
+
+        min_dist = a.radius + b.radius
+
+        if dist == 0:
+            return
+
+        if dist < min_dist:
+
+            overlap = min_dist - dist
+
+            nx = dx / dist
+            ny = dy / dist
+
+            push = overlap * 0.5
+
+            a.x -= nx * push
+            a.y -= ny * push
+
+            b.x += nx * push
+            b.y += ny * push
+
+            self.resolve_collision(a)
+            self.resolve_collision(b)
+
+    def resolve_entity_collisions(self):
+        """Разрешаем коллизии между сущностями (игроки, враги) - 
+        отталкиваем их друг от друга, чтобы не застревали"""
+
+        # Игрок ↔ Враг
+        for p in self.players.values():
+            for e in self.enemies:
+                self.resolve_entity_overlap(p, e)
+
+        # Враг ↔ Враг
+        for i in range(len(self.enemies)):
+            for j in range(i + 1, len(self.enemies)):
+                self.resolve_entity_overlap(
+                    self.enemies[i],
+                    self.enemies[j]
+                )
+
+        # Игрок ↔ Игрок
+        players = list(self.players.values())
+
+        for i in range(len(players)):
+            for j in range(i + 1, len(players)):
+                self.resolve_entity_overlap(
+                    players[i],
+                    players[j]
+                )
+
 
     def cast_ray(
         self,
@@ -1001,6 +1088,10 @@ class Game:
                 if p.shoot_cooldown > 0:
                     p.shoot_cooldown -= self.dt
 
+            for e in self.enemies:
+                if e.attack_cooldown > 0:
+                    e.attack_cooldown -= self.dt
+
             # 1. Спавн врагов (без изменений)
             self.spawn_timer += self.dt
             if self.spawn_timer >= self.spawn_interval:
@@ -1299,6 +1390,9 @@ class Game:
                             self.resolve_collision(e)
 
                             e.angle = math.atan2(dir_y, dir_x)
+
+            # Раздвигаем существ после движения
+            self.resolve_entity_collisions()
 
             # 3. Пули
             for b in self.bullets:
