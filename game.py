@@ -102,6 +102,8 @@ class Bullet(Entity):
     vy: float = 0.0
     lifetime: float = 1.5
 
+    traveled: float = 0.0
+    max_distance: float = 300.0
 
 @dataclass
 class HitEffect:
@@ -687,9 +689,7 @@ class Game:
             # =====================================
             # Проверяем врагов
             # =====================================
-
-            for enemy in self.enemies:
-
+            def check_collisium_px_py_and_enemy(px, py, enemy, hit_type="enemy"):
                 dist_to_enemy = math.hypot(
                     px - enemy.x,
                     py - enemy.y
@@ -707,24 +707,17 @@ class Game:
                         "enemy_id": enemy.id
                     }
                 
-            for enemy_player in self.players:
-
-                dist_to_enemy = math.hypot(
-                    px - enemy.x,
-                    py - enemy.y
-                )
-
-                if dist_to_enemy <= enemy_player.radius:
-
-                    return {
-                        "distance": distance / max_distance,
-                        # "hit_x": enemy.x, # Какой-то АвтоАИМ
-                        # "hit_y": enemy.y,
-                        "hit_x": px, 
-                        "hit_y": py,
-                        "hit_type": "enemy",
-                        "enemy_id": enemy_player.id
-                    }
+            for enemy in self.enemies:
+                rez = check_collisium_px_py_and_enemy(px, py, enemy)
+                if rez:
+                    return rez
+                
+            for i in self.players:
+                if self.players[i].id == player.id:
+                    continue
+                rez = check_collisium_px_py_and_enemy(px, py, self.players[i])
+                if rez:
+                    return rez
 
             distance += step
 
@@ -815,12 +808,19 @@ class Game:
                 step=step
             )
 
-            enemy_ray = self.cast_enemy_ray(
+            # enemy_ray = self.cast_enemy_ray(
+            #     player,
+            #     angle,
+            #     max_distance=max_distance,
+            #     step=step
+            # )
+            enemy_ray = self.cast_enemy_and_player_ray(
                 player,
                 angle,
                 max_distance=max_distance,
                 step=step
             )
+            
 
             wall_sensors.append(
                 wall_ray["distance"]
@@ -1302,8 +1302,22 @@ class Game:
 
             # 3. Пули
             for b in self.bullets:
-                b.x += b.vx * self.dt * 60
-                b.y += b.vy * self.dt * 60
+                move_x = b.vx * self.dt * 60
+                move_y = b.vy * self.dt * 60
+
+                b.x += move_x
+                b.y += move_y
+
+                # сколько пролетела
+                b.traveled += math.hypot(
+                    move_x,
+                    move_y
+                )
+
+                # ограничение дальности
+                if b.traveled >= b.max_distance:
+                    b.lifetime = 0
+
                 b.lifetime -= self.dt
 
             # 4. Коллизии
