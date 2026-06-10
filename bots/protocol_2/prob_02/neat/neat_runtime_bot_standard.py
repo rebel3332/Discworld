@@ -11,6 +11,8 @@ import neat
 import numpy as np
 import websockets
 
+import itertools
+
 
 # =========================================================
 # CONFIG
@@ -528,6 +530,31 @@ async def async_main():
 
         population = neat.Checkpointer.restore_checkpoint(
             checkpoint
+        )
+        # Найти максимальный ID узла во всей популяции
+        max_node_id = -1
+        for genome in population.population.values():
+            if genome.nodes:
+                max_node_id = max(
+                    max_node_id,
+                    max(genome.nodes.keys())
+                )
+
+        print("Max node id:", max_node_id)
+        # Сдвинуть счетчик дальше
+        population.config.genome_config.node_indexer = (
+            itertools.count(max_node_id + 1)
+        )
+
+
+        next_id = next(
+            population.config.genome_config.node_indexer
+        )
+
+        print("Next node id:", next_id)
+
+        population.config.genome_config.node_indexer = itertools.count(
+            next_id
         )
 
     else:

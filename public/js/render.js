@@ -509,7 +509,12 @@ export function createRenderer(game) {
             target = game.me();
         } else {
             // spectator смотрит на первого игрока
-            target = game.state.players?.[0];
+            // target = game.state.players?.[0];
+
+            // spectator смотрит на выбранного игрока
+            target =
+                game.state.players?.[game.spectatorIndex]
+                || game.state.players?.[0];
         }
         if(!target) return;
         const targetX =

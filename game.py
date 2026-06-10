@@ -69,6 +69,11 @@ class Player(Entity):
     survival_ticks: int = 0
 
     protocol_version: int = 1
+    # сенсоры для протокола 2.1+
+    sensor_touch_wall: int = 0
+    sensor_touch_entity: int = 0
+    sensor_was_hit: int = 0
+    sensor_speed: float = 0.0
 
     def respawn(self, width, height):
         self.hp = 100
@@ -144,7 +149,7 @@ class Game:
         
         self.spawn_timer = 0.0
         self.spawn_interval = 2.0  # сек
-        self.enemy_count = 0 # число заспавненных врагов (для прогрессии сложности)
+        # self.enemy_count = 0 # число заспавненных врагов (для прогрессии сложности)
 
         self.hit_effects: List[HitEffect] = []
         self.explosions: List[Explosion] = []
@@ -251,54 +256,7 @@ class Game:
                     entity.y = test_y
 
                     return
-
-    # def process_inputs(self, cid: int, dx: float, dy: float, shoot: bool, angle: float):
-    #     if cid not in self.players: return
-    #     p = self.players[cid]
-    #     p.angle = angle
-    #     p.vx = dx
-    #     p.vy = dy
-        
-    #     # 🔒 Движение: нормализуем вектор (анти-спидхак)
-    #     if dx != 0 or dy != 0:
-    #         length = math.hypot(dx, dy)
-    #         speed = 4.0
-    #         # p.x += (dx / length) * speed * self.dt * 60
-    #         # p.y += (dy / length) * speed * self.dt * 60
-    #         # # Ограничение полем
-    #         # p.x = max(p.radius, min(self.W - p.radius, p.x))
-    #         # p.y = max(p.radius, min(self.H - p.radius, p.y))
-
-    #         new_x = p.x + (dx / length) * speed * self.dt * 60
-    #         new_y = p.y + (dy / length) * speed * self.dt * 60
-    #         # Ограничение полем (границами мира)
-    #         new_x = max(p.radius, min(self.W - p.radius, new_x))
-    #         new_y = max(p.radius, min(self.H - p.radius, new_y))
-
-    #         # Проверка коллизий с миром (с учетом радиуса)
-    #         if self.can_move_to(new_x, p.y, p.radius):
-    #             p.x = new_x
-
-    #         if self.can_move_to(p.x, new_y, p.radius):
-    #             p.y = new_y
-
-    #         self.resolve_collision(p)
-    #     # 🔒 Выстрел
-    #     if shoot and p.shoot_cooldown <= 0:
-    #         bullet = Bullet(
-    #             id=self.next_id,
-    #             x=p.x,
-    #             y=p.y,
-    #             radius=4,
-    #             vx=math.cos(angle)*10,
-    #             vy=math.sin(angle)*10
-    #         )
-
-    #         bullet.owner = cid
-
-    #         self.bullets.append(bullet)
-    #         p.shoot_cooldown = 0.15  # 150ms между выстрелами
-    #         self.next_id += 1
+                
 
     def process_inputs(
         self,
@@ -371,6 +329,11 @@ class Game:
         p.isMoving = length > 0
 
         if length > 0:
+            # Для рассчета реальной скорости движения, которая может быть полезна для сенсоров и логики бота, сохраняем её в player.speed
+            old_x = p.x
+            old_y = p.y
+            isCanMoveX = False
+            isCanMoveY = False
 
             move_x /= length
             move_y /= length
@@ -389,21 +352,35 @@ class Game:
                 move_y * MOVE_SPEED * self.dt * 60
             )
 
-            if self.can_move_to(
-                new_x,
-                p.y,
-                p.radius
-            ):
+            if self.can_move_to(new_x, p.y, p.radius):
                 p.x = new_x
+                isCanMoveX = True
 
-            if self.can_move_to(
-                p.x,
-                new_y,
-                p.radius
-            ):
+            if self.can_move_to(p.x, new_y, p.radius):
                 p.y = new_y
+                isCanMoveY = True
 
             self.resolve_collision(p)
+
+            # Реальная скорость движения (может быть полезна для сенсоров и логики бота)
+            p.sensor_speed = (
+                math.hypot(
+                    p.x - old_x,
+                    p.y - old_y
+                ) / MOVE_SPEED
+            )
+            # Косание стены (для протокола 2.1+)
+            if (
+                p.protocol_version >= 2.1
+                and
+                length > 0
+                and
+                not (isCanMoveX or isCanMoveY)
+            ):
+                p.sensor_touch_wall = 1
+                # print("Sensor touch wall activated")
+            else:
+                p.sensor_touch_wall = 0
 
         # =====================================
         # SHOOT
@@ -494,7 +471,7 @@ class Game:
 
                     # смерть врага
                     if e.hp <= 0:
-                        self._create_explosion(e.x, e.y)
+                        # self._create_explosion(e.x, e.y)
 
                         if bullet_owner in self.players:
                             self.players[bullet_owner].score += 50
@@ -516,6 +493,8 @@ class Game:
 
                     p.hp -= 10
                     b.lifetime = 0
+                    if p.protocol_version >= 2.1:
+                        p.sensor_was_hit = 1
 
                     # очки за попадание
                     if owner in self.players:
@@ -561,7 +540,10 @@ class Game:
                         p.hp -= damage
                         e.attack_cooldown = ENEMY_TYPES[e.enemy_type]["attack_cooldown"]
 
-                    self._create_explosion(e.x, e.y)
+                        if p.protocol_version >= 2.1:
+                            p.sensor_was_hit = 1
+
+                    # self._create_explosion(e.x, e.y)
 
                     if p.hp <= 0:
                         # p.hp = 100
@@ -600,6 +582,14 @@ class Game:
 
             self.resolve_collision(a)
             self.resolve_collision(b)
+
+            if isinstance(a, Player):
+                if a.protocol_version >= 2.1:
+                    a.sensor_touch_entity = 1
+
+            if isinstance(b, Player):
+                if b.protocol_version >= 2.1:
+                    b.sensor_touch_entity = 1
 
     def resolve_entity_collisions(self):
         """Разрешаем коллизии между сущностями (игроки, враги) - 
@@ -817,18 +807,19 @@ class Game:
 
     def build_sensor_data(self, player: Player):
         """Строит данные для сенсоров бота на основе его положения и мира"""
-        if  False: #not player.is_bot: #or player.protocol_version < PROTOCOL_RAYCAST:
+        if  not player.is_bot or player.protocol_version < PROTOCOL_RAYCAST:
             return {
                 # "sensors": None,
                 # "debug_rays": None
                 "wall_sensors": None,
                 "enemy_sensors": None,
                 "wall_debug_rays": None,
-                "enemy_debug_rays": None
+                "enemy_debug_rays": None,
+                "additional_info": None
             }
         # sensors = []
         # debug_rays = []
-
+        
         wall_sensors = []
         enemy_sensors = []
 
@@ -930,6 +921,15 @@ class Game:
                 "type": enemy_ray["hit_type"]
             })
     
+
+        # if player.protocol_version >= 2.1:
+        #     player.touch_wall = 0
+        #     player.touch_entity = 0
+        #     player.was_hit = 0
+        #     player.hit_enemy = 0
+        #     player.speed = 0
+
+
         return {
             "wall_sensors": wall_sensors,
             "enemy_sensors": enemy_sensors,
@@ -937,86 +937,38 @@ class Game:
             "enemy_debug_rays": enemy_debug_rays,
         }
 
-    # def get_bot_observation(self, player):
-    #     sensors = []
-    #     debug_rays = []
-    #     sensor_configs = SENSORS.get(
-    #         "rays",
-    #         []
-    #     )
-    #     max_distance = SENSORS.get(
-    #         "max_distance",
-    #         300
-    #     )
-    #     step = SENSORS.get(
-    #         "step",
-    #         4
-    #     )
-
-    #     for sensor in sensor_configs:
-    #         sensor_angle = sensor.get(
-    #             "angle",
-    #             0
-    #         )
-    #         angle = (
-    #             player.angle
-    #             +
-    #             math.radians(sensor_angle)
-    #         )
-    #         ray = self.cast_ray(
-    #             player.x,
-    #             player.y,
-    #             angle,
-    #             max_distance=max_distance,
-    #             step=step
-    #         )
-    #         sensors.append(
-    #             ray["distance"]
-    #         )
-    #         debug_rays.append({
-    #             "x1": player.x,
-    #             "y1": player.y,
-    #             "x2": ray["hit_x"],
-    #             "y2": ray["hit_y"]
-    #         })
-
-    #     return {
-    #         "type": "bot_observation_v1",
-    #         "self": {
-    #             "id": player.id,
-    #             "x": player.x,
-    #             "y": player.y,
-    #             "hp": player.hp / 100.0,
-    #             "angle": player.angle
-    #         },
-    #         "sensors": sensors,
-    #         "debug_rays": debug_rays
-    #     }
-
     def get_bot_observation(self, player: Player):
         """"""
         sensor_data = self.build_sensor_data(
             player
         )
+        rez =  {
 
-        return {
+                    "type": "bot_observation_v1",
+                    
+                    "self": {
+                        "id": player.id,
+                        "x": player.x,
+                        "y": player.y,
+                        "hp": player.hp / 100.0,
+                        "angle": player.angle,
+                        "score": player.score
+                    },
 
-            "type": "bot_observation_v1",
-            
-            "self": {
-                "id": player.id,
-                "x": player.x,
-                "y": player.y,
-                "hp": player.hp / 100.0,
-                "angle": player.angle,
-                "score": player.score
-            },
-
-            # "sensors": sensor_data["sensors"]
-            "wall_sensors": sensor_data["wall_sensors"],
-            "enemy_sensors": sensor_data["enemy_sensors"]
-        }
-
+                    # "sensors": sensor_data["sensors"]
+                    "wall_sensors": sensor_data["wall_sensors"],
+                    "enemy_sensors": sensor_data["enemy_sensors"]
+                }
+        if player.protocol_version >= 2.1:
+            additional_info = {
+                "sensor_touch_wall": player.sensor_touch_wall,
+                "sensor_touch_entity": player.sensor_touch_entity, 
+                "sensor_was_hit": player.sensor_was_hit,
+                "sensor_speed": player.sensor_speed
+            }
+            rez["additional_info"] = additional_info
+        return rez
+    
     def _create_explosion(self, x: float, y: float):
         """Создаёт партиклы взрыва"""
         particles = []
@@ -1082,11 +1034,27 @@ class Game:
 
     def tick(self):
         if self.world_tick():
+            # print(
+            #     "players=", len(self.players),
+            #     "enemies=", len(self.enemies),
+            #     "bullets=", len(self.bullets),
+            #     "hit_effects=", len(self.hit_effects),
+            #     "explosions=", len(self.explosions)
+            # )
             # cooldowns
             for p in self.players.values():
+
                 p.survival_ticks += 1
+
                 if p.shoot_cooldown > 0:
                     p.shoot_cooldown -= self.dt
+
+                # сбрасываем сенсорные флаги, чтобы они были активны только в течение одного тика после события
+                if p.protocol_version >= 2.1:
+                    # p.sensor_touch_wall = 0
+                    p.sensor_touch_entity = 0
+                    p.sensor_was_hit = 0
+                    # p.sensor_speed = 0
 
             for e in self.enemies:
                 if e.attack_cooldown > 0:
@@ -1096,7 +1064,8 @@ class Game:
             self.spawn_timer += self.dt
             if self.spawn_timer >= self.spawn_interval:
                 self.spawn_timer = 0
-                self.enemy_count += 1
+                #self.enemy_count += 1
+                # self.enemy_count = len(self.enemies) + 1
                 # if (self.enemy_count % 10 == 0):
                 #     enemy_model = "simple_boss"
                 #     enemy_hp = 30
@@ -1438,16 +1407,16 @@ class Game:
         self.hit_effects = [h for h in self.hit_effects if h.lifetime > 0]
         
         # 2. Взрывы (Explosions)
-        for exp in self.explosions:
-            for pt in exp.particles:
-                pt["x"] += pt["vx"] * self.dt * 60
-                pt["y"] += pt["vy"] * self.dt * 60
-                pt["life"] -= self.dt
-            # Удаляем умершие частицы внутри взрыва
-            exp.particles = [p for p in exp.particles if p["life"] > 0]
+        # for exp in self.explosions:
+        #     for pt in exp.particles:
+        #         pt["x"] += pt["vx"] * self.dt * 60
+        #         pt["y"] += pt["vy"] * self.dt * 60
+        #         pt["life"] -= self.dt
+        #     # Удаляем умершие частицы внутри взрыва
+        #     exp.particles = [p for p in exp.particles if p["life"] > 0]
         
-        # Удаляем пустые взрывы
-        self.explosions = [e for e in self.explosions if e.particles]
+        # # Удаляем пустые взрывы
+        # self.explosions = [e for e in self.explosions if e.particles]
 
     
     def get_snapshot(self) -> dict:
@@ -1518,10 +1487,11 @@ class Game:
                 }
                 for h in self.hit_effects
             ],
-            "explosions": [
-                {"id": ex.id, "x": ex.x, "y": ex.y, "p": ex.particles} 
-                for ex in self.explosions[-20:]   # ⬅️ ограничение количества взрывов в снимке (для оптимизации)
-            ],
+            # "explosions": [
+            #     {"id": ex.id, "x": ex.x, "y": ex.y, "p": ex.particles} 
+            #     for ex in self.explosions[-20:]   # ⬅️ ограничение количества взрывов в снимке (для оптимизации)
+            # ],
+            "explosions": []
         }
     
     def get_snapshot_for(self, player=None) -> dict:

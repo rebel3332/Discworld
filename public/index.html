@@ -35,7 +35,15 @@
         const statusEl = document.getElementById('status');
 
         const params = new URLSearchParams(location.search);
-        const spectatorMode = params.get('spectator') === '1';
+        // const spectatorMode = params.get('spectator') === '1';
+        //const spectatorMode = params.get('spectator') >= '0';
+        const spectatorValue = parseInt(params.get('spectator') || '0', 10);
+
+        const spectatorMode =
+            spectatorValue > 0;
+
+        const spectatorIndex =
+            Math.max(0, spectatorValue - 1);
 
 
         
@@ -118,6 +126,7 @@
             CONFIG,
             localEffects,
             spectatorMode,
+            spectatorIndex,
             animationTime: 0,
 
             camera: {
