@@ -475,13 +475,16 @@ class Population:
             ]
         }
 
-        with open(CHECKPOINT_FILE, "wb") as f:
-            pickle.dump(data, f)
+        try:
+            with open(CHECKPOINT_FILE, "wb") as f:
+                pickle.dump(data, f)
+            print(
+                f"💾 Saved checkpoint "
+                f"(gen {self.generation})"
+            )       
+        except Exception as e:
+            print(f"Error saving checkpoint: {e}")
 
-        print(
-            f"💾 Saved checkpoint "
-            f"(gen {self.generation})"
-        )
 
 
     def load_checkpoint(self):

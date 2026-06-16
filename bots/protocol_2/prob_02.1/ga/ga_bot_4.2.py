@@ -19,6 +19,7 @@ import random
 import time
 import os
 import pickle
+import threading
 
 import numpy as np
 import websockets
@@ -510,13 +511,23 @@ class Population:
             ]
         }
 
-        with open(CHECKPOINT_FILE, "wb") as f:
-            pickle.dump(data, f)
+        # print(
+        #     "SAVE",
+        #     self.generation,
+        #     repr(CHECKPOINT_FILE),
+        #     os.path.abspath(CHECKPOINT_FILE),
+        #     threading.get_ident()
+        # )
 
-        print(
-            f"💾 Saved checkpoint "
-            f"(gen {self.generation})"
-        )
+        try:
+            with open(CHECKPOINT_FILE, "wb") as f:
+                pickle.dump(data, f)
+            print(
+                f"💾 Saved checkpoint "
+                f"(gen {self.generation})"
+            )       
+        except Exception as e:
+            print(f"Error saving checkpoint: {e}")
 
 
     def load_checkpoint(self):
