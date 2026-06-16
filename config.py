@@ -14,3 +14,12 @@ SENSORS = load_json(
 WORLDS = load_json(
     "public/config/world.json"
 )
+
+ENTITIES = load_json(
+    "public/config/entities.json"
+)
+
+# if __name__ == "__main__":
+#     print("SENSORS:", SENSORS)
+#     print("WORLDS:", WORLDS)
+#     print("ENTITIES:", ENTITIES)

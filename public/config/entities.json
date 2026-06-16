@@ -1,14 +1,49 @@
 {
-  "player": {
-    "radius": 22,
-    "speed": 4,
-    "max_hp": 100
-  },
+    "player": {
+        "name": "Player",
+        "stats": {
+            "radius": 14,
+            "max_hp": 100,
+            "speed": 4.0,
+            "attack_range": 20,
+            "damage": 1
+        }
+    },
 
-  "zombie": {
-    "radius": 20,
-    "speed": 2,
-    "max_hp": 60,
-    "damage": 10
-  }
+    "hunter": {
+        "name": "Hunter",
+        "stats": {
+            "radius": 14,
+            "max_hp": 4,
+            "speed": 1.2,
+            "attack_range": 20,
+            "attack_cooldown": 3.0,
+            "damage": 8
+
+        }
+    },
+
+    "zombie": {
+        "name": "Zombie",
+        "stats": {
+            "radius": 14,
+            "max_hp": 1,
+            "speed": 0.5,
+            "attack_range": 22,
+            "attack_cooldown": 5.0,
+            "damage": 20
+        }
+    },
+
+    "boss": {
+        "name": "Boss",
+        "stats": {
+            "radius": 24,
+            "max_hp": 40,
+            "speed": 1.0,
+            "attack_range": 30,
+            "attack_cooldown": 4.0,
+            "damage": 8
+        }
+    }
 }

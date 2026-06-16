@@ -5,44 +5,11 @@ from dataclasses import dataclass, field
 from typing import List, Dict
 
 from world import World
-from config import SENSORS
+from config import SENSORS, ENTITIES
 
 PROTOCOL_LEGACY = 1
 PROTOCOL_RAYCAST = 2
 
-
-ENEMY_TYPES = {
-
-    "boss": {
-        "speed": 1.,
-        "hp": 40,
-        "damage": 8,
-        "radius": 24,
-        "color": "#6f6",
-        "attack_cooldown": 4,
-        "attack_range": 30 
-    },
-
-    "hunter": {
-        "speed": 1.2,
-        "hp": 4,
-        "damage": 8,
-        "radius": 14,
-        "color": "#6f6",
-        "attack_cooldown": 3,
-        "attack_range": 20
-    },
-
-    "zombie": {
-        "speed": 0.5,
-        "hp": 1,
-        "damage": 20,
-        "radius": 14,
-        "color": "#9c6",
-        "attack_cooldown": 5,
-        "attack_range": 22
-    },
-}
 
 @dataclass
 class Entity:
@@ -50,12 +17,15 @@ class Entity:
     x: float
     y: float
     radius: float
+    entity_type: str
     angle: float = 0.0
 
 @dataclass
 class Player(Entity):
+    # entity_type: str = "player"
     name: str = "Player"
     hp: int = 100
+    max_hp: int = 100
     score: int = 0
     is_bot: bool = False
     shoot_cooldown: float = 0.0 # время до следующего выстрела
@@ -76,37 +46,72 @@ class Player(Entity):
     sensor_speed: float = 0.0
 
     def respawn(self, width, height):
-        self.hp = 100
+        self.hp = self.max_hp
         self.score = 0
         self.x = random.randint(100, width - 100)
         self.y = random.randint(100, height - 100)
 
-@dataclass
-class Enemy(Entity):
-    name: str = "Hunter"
-    hp: int = 3
-    speed: float = 3.5
-    isMoving: bool = False
-    enemy_type: str = "hunter"
-    attack_cooldown: float = 0.0
-
-    def __init__(self, enemy_type="hunter", **kwds):
-        params = ENEMY_TYPES.get(enemy_type, ENEMY_TYPES["hunter"]) # Защита от неизвестного типа
-
-        self.name = enemy_type.capitalize()
-        self.hp = params.get("hp", 1)
-        self.speed = params.get("speed", 1.0)
-        self.enemy_type = enemy_type
-
-        # Если парамтры переданы явно, используем их, иначе - из словаря
+    def __init__(self, name=None, hp=None, max_hp=None, **kwds):
+        self.entity_type="player"
+        cfg = ENTITIES[self.entity_type]
+        self.entity_type = self.entity_type
+        
+        stats = cfg["stats"]
+        self.name = name or cfg["name"]
+        self.speed = stats["speed"]
+        # self.max_hp = stats["max_hp"]
+        self.max_hp = max_hp or stats["max_hp"]
+        self.hp = (
+            self.max_hp
+            if hp is None
+            else min(hp, self.max_hp)
+        )
         kwds.setdefault(
             "radius",
-            params.get("radius", 14)
+            stats["radius"]
+        )
+        kwds.setdefault(
+            "entity_type",
+            self.entity_type
         )
 
         super().__init__(**kwds)
-        # print(f"Spawned enemy {self.name} with HP {self.hp} and speed {self.speed}, radius {self.radius}")
 
+@dataclass
+class Enemy(Entity):
+    # entity_type: str = "hunter"
+    name: str = "Hunter"
+    hp: int = 3
+    max_hp: int = 4
+    speed: float = 3.5
+    isMoving: bool = False
+    attack_cooldown: float = 0.0
+
+    def __init__(self, entity_type="hunter", hp=None, **kwds):
+        cfg = ENTITIES[entity_type]
+        self.entity_type = entity_type
+        
+        stats = cfg["stats"]
+        self.name = cfg["name"]
+        self.speed = stats["speed"]
+        self.max_hp = stats["max_hp"]
+
+        self.hp = (
+            self.max_hp
+            if hp is None
+            else min(hp, self.max_hp)
+        )
+
+        kwds.setdefault(
+            "radius",
+            stats["radius"]
+        )
+        kwds.setdefault(
+            "entity_type",
+            entity_type
+        )
+
+        super().__init__(**kwds)
 
 @dataclass
 class Bullet(Entity):
@@ -170,11 +175,20 @@ class Game:
             self.simulation_speed = 1
 
     def add_player(self, cid: int, name: str | None = None) -> Player:
+        cfg = ENTITIES["player"]
+        stats = cfg["stats"]
         p = Player(
             id=self.next_id,
+            entity_type="player",
             x=random.randint(100, self.W - 100),
             y=random.randint(100, self.H - 100),
-            radius=14,
+
+            radius=stats["radius"],
+
+
+            hp=stats["max_hp"],
+            max_hp=stats["max_hp"],
+
             name=name or f"Player{self.player_counter}"
         )
         self.next_id += 1
@@ -395,7 +409,8 @@ class Game:
                 y=p.y,
                 radius=4,
                 vx=math.cos(p.angle) * 10,
-                vy=math.sin(p.angle) * 10
+                vy=math.sin(p.angle) * 10,
+                entity_type="bullet"
             )
 
             bullet.owner = cid
@@ -531,14 +546,14 @@ class Game:
         for e in self.enemies[:]:
             for cid, p in self.players.items():
                 # if math.hypot(p.x - e.x, p.y - e.y) < (p.radius + e.radius):
-                if math.hypot(p.x - e.x, p.y - e.y) < (p.radius + ENEMY_TYPES[e.enemy_type]["attack_range"]):
+                if math.hypot(p.x - e.x, p.y - e.y) < (p.radius + ENTITIES[e.entity_type]["stats"]["attack_range"]):
                     # p.hp -= 15
                     # e.hp = 0
                    
                     if e.attack_cooldown <= 0:
-                        damage = ENEMY_TYPES[e.enemy_type]["damage"]
+                        damage = ENTITIES[e.entity_type]["stats"]["damage"]
                         p.hp -= damage
-                        e.attack_cooldown = ENEMY_TYPES[e.enemy_type]["attack_cooldown"]
+                        e.attack_cooldown = ENTITIES[e.entity_type]["stats"]["attack_cooldown"]
 
                         if p.protocol_version >= 2.1:
                             p.sensor_was_hit = 1
@@ -1190,10 +1205,10 @@ class Game:
                         self.enemies.append(
                             Enemy(
                                 id=self.next_id,
+                                entity_type=enemy_type,
                                 x=x,
                                 y=y,
                                 radius=radius,
-                                enemy_type=enemy_type,
                             )
                         )
                         self.next_id += 1
@@ -1213,9 +1228,9 @@ class Game:
                     self.enemies.append(
                         Enemy(
                             id=self.next_id,
+                            entity_type=enemy_type,
                             x=x,
                             y=y,
-                            enemy_type=enemy_type,
                         )
                     )
                     self.next_id += 1
@@ -1448,9 +1463,11 @@ class Game:
                     "y": p.y,
                     # "vx": p.vx,
                     # "vy": p.vy,
+                    "entity_type": p.entity_type,
                     "isMoving": p.isMoving,
                     "isShoot": p.isShoot,
                     "hp": p.hp,
+                    "max_hp": p.max_hp,
                     "score": p.score,
                     "radius": p.radius,
                     "angle": p.angle,
@@ -1469,7 +1486,8 @@ class Game:
                     "angle": e.angle,
                     "radius": e.radius,
                     "hp": e.hp,
-                    "enemy_type": e.enemy_type,
+                    "max_hp": e.max_hp,
+                    "enemy_type": e.entity_type,
                     "isMoving": e.isMoving,
                     "flash": e.hp < 3}
                 for e in self.enemies
@@ -1533,9 +1551,11 @@ class Game:
                     "y": p.y,
                     # "vx": p.vx,
                     # "vy": p.vy,
+                    "entity_type": p.entity_type,
                     "isMoving": p.isMoving,
                     "isShoot": p.isShoot,
                     "hp": p.hp,
+                    "max_hp": p.max_hp,
                     "score": p.score,
                     "radius": p.radius,
                     "angle": p.angle,
@@ -1552,10 +1572,12 @@ class Game:
                     "id": e.id,
                     "x": e.x,
                     "y": e.y,
+                    "entity_type": e.entity_type,
                     "angle": e.angle,
                     "radius": e.radius,
                     "hp": e.hp,
-                    "enemy_type": e.enemy_type,
+                    "max_hp": e.max_hp,
+                    "enemy_type": e.entity_type,
                     "isMoving": e.isMoving,
                 }
                 for e in self.enemies
