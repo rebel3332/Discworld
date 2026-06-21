@@ -7,6 +7,9 @@
             "speed": 4.0,
             "attack_range": 20,
             "damage": 1
+        },
+        "graphics": {
+            "sprite_set": "marine"
         }
     },
 
@@ -19,7 +22,9 @@
             "attack_range": 20,
             "attack_cooldown": 3.0,
             "damage": 8
-
+        },
+        "graphics": {
+            "sprite_set": "marine"
         }
     },
 
@@ -32,6 +37,9 @@
             "attack_range": 22,
             "attack_cooldown": 5.0,
             "damage": 20
+        },
+        "graphics": {
+            "sprite_set": "marine"
         }
     },
 
@@ -44,6 +52,9 @@
             "attack_range": 30,
             "attack_cooldown": 4.0,
             "damage": 8
+        },
+        "graphics": {
+            "sprite_set": "marine"
         }
     }
 }

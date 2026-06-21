@@ -965,7 +965,7 @@ class Game:
                         "id": player.id,
                         "x": player.x,
                         "y": player.y,
-                        "hp": player.hp / 100.0,
+                        "hp": player.hp / player.max_hp,
                         "angle": player.angle,
                         "score": player.score
                     },

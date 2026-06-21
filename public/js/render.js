@@ -7,6 +7,30 @@ export function createRenderer(game) {
     const ctx = game.ctx;
     const canvas = game.canvas;
 
+    function getEntityConfig(entity) {
+        return game.CONFIG.entities?.[
+            entity.entity_type
+        ];
+    }
+
+    function getSpriteSet(entity) {
+        const entityCfg =
+            getEntityConfig(entity);
+        const spriteSet =
+            entityCfg?.graphics?.sprite_set;
+        return game.CONFIG.sprites.sprite_sets?.[
+            spriteSet
+        ];
+    }
+
+    function getSpriteSheet(entity) {
+        const spriteCfg =
+            getSpriteSet(entity);
+        return game.spriteSheets?.[
+            spriteCfg?.sheet
+        ];
+    }
+
     // const TILE_SPRITES = {
 
     //     0: [8, 9, 300, 236],      // grass
@@ -14,6 +38,11 @@ export function createRenderer(game) {
     //     2: [661, 0, 321, 329],    // toxic
     //     3: [1006, 20, 221, 229],    // water
     // };
+
+    // function getEntityConfig(entity) {
+    //     // Универсальный доступ к конфигу сущности по ее типу
+    //     return game.CONFIG.entities[entity.entity_type];
+    // }
 
     function drawFallbackPlayer(p, isMe) {
         // Если спрайты не загрузились, рисуем простого игрока в виде круга
@@ -26,45 +55,56 @@ export function createRenderer(game) {
         ctx.fill();
     }
 
-    function drawSpritePlayer(p) {
 
-        // const moving =
-        //     Math.abs(p.vx || 0) > 0.05 ||
-        //     Math.abs(p.vy || 0) > 0.05 ||
-        //     p.isMoving || false;
+    function drawEntitySprite(entity) {
+
+        const spriteCfg =
+            getSpriteSet(entity);
+
+        const sheet =
+            getSpriteSheet(entity);
+
+        if(!spriteCfg || !sheet) {
+            drawFallbackPlayer(entity, false);
+            return;
+        }
 
         const moving =
-            p.isMoving ||
+            entity.isMoving ||
             false;
 
         let frame;
 
+        if(moving) {
 
-        if (moving) {
+            const walkFrames =
+                spriteCfg.animations.walk;
 
             const walkFrame =
                 Math.floor(game.animationTime / 10)
-                % game.CONFIG.sprites.player.walk.length;
+                % walkFrames.length;
 
-            frame = game.CONFIG.sprites.player.walk[walkFrame];
+            frame =
+                walkFrames[walkFrame];
 
         } else {
 
-            frame = game.CONFIG.sprites.player.idle[0];
+            frame =
+                spriteCfg.animations.idle[0];
         }
 
         const [sx, sy, sw, sh] = frame;
 
         ctx.drawImage(
-            game.playerSheet,
+            sheet,
             sx,
             sy,
             sw,
             sh,
-            -p.radius,
-            -p.radius,
-            p.radius * 2,
-            p.radius * 2
+            -entity.radius,
+            -entity.radius,
+            entity.radius * 2,
+            entity.radius * 2
         );
     }
 
@@ -77,9 +117,9 @@ export function createRenderer(game) {
         return `hsl(${hue}, 100%, 45%)`;
     }
 
-    function drawHealthBar(x, y, hp, maxWidth = 32) {
+    function drawHealthBar(x, y, hp, max_hp, maxWidth = 32) {
 
-        const hpPercent = Math.max(0, Math.min(1, hp / 100));
+        const hpPercent = Math.max(0, Math.min(1, hp / max_hp));
 
         const barWidth = maxWidth * hpPercent;
 
@@ -186,9 +226,10 @@ export function createRenderer(game) {
             ctx.translate(e.x - game.camera.x, e.y - game.camera.y);
             ctx.rotate(e.angle - Math.PI / 2);
             if(!game.spritesLoaded) {
+            // if(!sheet) {
                 drawFallbackPlayer(e, false);
             } else {
-                drawSpritePlayer(e);
+                drawEntitySprite(e);
             }
             ctx.restore();
             drawName(e);
@@ -196,6 +237,7 @@ export function createRenderer(game) {
                 e.x - game.camera.x,
                 e.y - game.camera.y,
                 e.hp,
+                e.max_hp,
                 32
             );
         });
@@ -253,9 +295,10 @@ export function createRenderer(game) {
             ctx.translate(p.x - game.camera.x, p.y - game.camera.y);
             ctx.rotate(p.angle - Math.PI / 2);
             if(!game.spritesLoaded) {
+            // if(!sheet) {
                 drawFallbackPlayer(p, isMe);
             } else {
-                drawSpritePlayer(p);
+                drawEntitySprite(p);
             }
             ctx.restore();
             drawName(p);
@@ -263,6 +306,7 @@ export function createRenderer(game) {
                 p.x - game.camera.x,
                 p.y - game.camera.y,
                 p.hp,
+                p.max_hp,
                 32
             );
         });
@@ -272,7 +316,17 @@ export function createRenderer(game) {
 
         game.state.bullets?.forEach(b => {
 
-            const bullet = game.CONFIG.sprites.bullet;
+            // const bullet = game.CONFIG.sprites.bullet;
+            const bulletCfg =
+                game.CONFIG.sprites.bullet;
+
+            const sheet =
+                game.spriteSheets[
+                    bulletCfg.sheet
+                ];
+
+            const frame =
+                bulletCfg.frame;
 
             ctx.save();
 
@@ -281,12 +335,12 @@ export function createRenderer(game) {
             ctx.rotate(Math.atan2(b.vy, b.vx));
 
             ctx.drawImage(
-                game.playerSheet,
+                sheet,
 
-                bullet[0],
-                bullet[1],
-                bullet[2],
-                bullet[3],
+                frame[0],
+                frame[1],
+                frame[2],
+                frame[3],
 
                 -8,
                 -3,
@@ -310,8 +364,18 @@ export function createRenderer(game) {
             //     ];
             console.log(game.state.hits);
 
-            const hitFrames =
+            // const hitFrames =
+            //     game.CONFIG.sprites.hit;
+            const hitCfg =
                 game.CONFIG.sprites.hit;
+
+            const sheet =
+                game.spriteSheets[
+                    hitCfg.sheet
+                ];
+
+            const hitFrames =
+                hitCfg.frames;
 
             const frame =
                 hitFrames[
@@ -326,7 +390,7 @@ export function createRenderer(game) {
             ctx.translate(h.x - game.camera.x, h.y - game.camera.y);
 
             ctx.drawImage(
-                game.playerSheet,
+                sheet,
 
                 frame[0],
                 frame[1],
@@ -346,9 +410,22 @@ export function createRenderer(game) {
 
             if(effect.type === 'muzzle') {
 
+                // const frame =
+                //     game.CONFIG.sprites.muzzle[
+                //         Math.floor(Date.now() / 40) % 3
+                //     ];
+                const muzzleCfg =
+                    game.CONFIG.sprites.muzzle;
+
+                const sheet =
+                    game.spriteSheets[
+                        muzzleCfg.sheet
+                    ];
+
                 const frame =
-                    game.CONFIG.sprites.muzzle[
-                        Math.floor(Date.now() / 40) % 3
+                    muzzleCfg.frames[
+                        Math.floor(Date.now()/40)
+                        % muzzleCfg.frames.length
                     ];
 
                 ctx.save();
@@ -362,7 +439,7 @@ export function createRenderer(game) {
                     game.CONFIG.effects.muzzleFlash.life;
 
                 ctx.drawImage(
-                    game.playerSheet,
+                    sheet,
 
                     frame[0],
                     frame[1],

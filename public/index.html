@@ -23,11 +23,43 @@
         import { loadAllConfigs } from '/static/js/config.js';
         const CONFIG = await loadAllConfigs();
 
+        // Загрузка спрайтов
+        const spriteSheets = {};
+        const sheetPaths = new Set();
+        Object.values(
+            CONFIG.sprites.sprite_sets || {}
+        ).forEach(cfg => {
+            if(cfg.sheet)
+                sheetPaths.add(cfg.sheet);
+        });
+        if(CONFIG.sprites.weapon?.sheet)
+            sheetPaths.add(CONFIG.sprites.weapon.sheet);
+        if(CONFIG.sprites.bullet?.sheet)
+            sheetPaths.add(CONFIG.sprites.bullet.sheet);
+        if(CONFIG.sprites.hit?.sheet)
+            sheetPaths.add(CONFIG.sprites.hit.sheet);
+        if(CONFIG.sprites.muzzle?.sheet)
+            sheetPaths.add(CONFIG.sprites.muzzle.sheet);
+
+        await Promise.all(
+            [...sheetPaths].map(path => {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        spriteSheets[path] = img;
+                        resolve();
+                    };
+                    img.onerror = reject;
+                    img.src = path;
+                });
+            })
+        );
+
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
-        const playerSheet = new Image();
-        playerSheet.src = '/static/assets/player_sheet.png';
+        // const playerSheet = new Image();
+        // playerSheet.src = '/static/assets/player_sheet.png';
 
         const tileSheet = new Image();
         tileSheet.src = '/static/assets/tileset.png';
@@ -71,7 +103,7 @@
         // Локальные эффекты (не синхронизируются с сервером)
         let localEffects = [];
 
-        let spritesLoaded = false;
+        let spritesLoaded = true;
 
         // const CONFIG.sprites = {
 
@@ -119,7 +151,8 @@
             state,
             myId,
             spritesLoaded,
-            playerSheet,
+            // playerSheet,
+            spriteSheets,
             // SPRITES,
             tileSheet, // Спрайты для тайлов
             // EFFECTS,
@@ -141,14 +174,14 @@
         };
 
 
-        playerSheet.onload = () => {
-            console.log("✅ sprites loaded");
-            game.spritesLoaded = true;
-        };
+        // playerSheet.onload = () => {
+        //     console.log("✅ sprites loaded");
+        //     game.spritesLoaded = true;
+        // };
 
-        playerSheet.onerror = () => {
-            console.error("❌ sprite load failed");
-        };
+        // playerSheet.onerror = () => {
+        //     console.error("❌ sprite load failed");
+        // };
 
 
         // WebSocket
